@@ -4,12 +4,12 @@
 - OpenAI
 - DeepGram
 - Livekit
-## anderson-work
+
+## agent
 - cd <agent_dir>
 - python3 -m venv venv
 - source venv/bin/activate
 - python3 -m pip install -r requirements.txt
-## start voice agent worker
 - python3 agent.py dev
 
 ## frontend
