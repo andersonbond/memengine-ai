@@ -111,7 +111,7 @@ function ControlBar(props: {
             className="uppercase absolute left-1/2 -translate-x-1/2 px-4 py-2 bg-white text-black rounded-md"
             onClick={() => props.onConnectButtonClicked()}
           >
-            Start SGV FSO Memory
+            Start Call
           </motion.button>
         )}
       </AnimatePresence>
