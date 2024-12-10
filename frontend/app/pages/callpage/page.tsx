@@ -63,9 +63,8 @@ export default function Page() {
       </LiveKitRoom>
 
       <div className="text-black">
-        Logs
+        <LogsAndConversations />
       </div>
-      
     </main>
   );
 }
@@ -108,7 +107,7 @@ function ControlBar(props: {
             animate={{ opacity: 1 }}
             exit={{ opacity: 0, top: "-10px" }}
             transition={{ duration: 1, ease: [0.09, 1.04, 0.245, 1.055] }}
-            className="uppercase absolute left-1/2 -translate-x-1/2 px-4 py-2 bg-white text-black rounded-md"
+            className="uppercase absolute left-1/2 -translate-x-1/2 items-center px-6 py-3 bg-[#ffb703] hover:bg-[#f8c915] text-black rounded-lg shadow-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition"
             onClick={() => props.onConnectButtonClicked()}
           >
             Start Call

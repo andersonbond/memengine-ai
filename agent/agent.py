@@ -1,6 +1,7 @@
 import logging
 import os
 from typing import List
+from asyncio import Lock
 
 from dotenv import load_dotenv
 from livekit.agents import (
@@ -15,6 +16,20 @@ from livekit.agents.pipeline import VoicePipelineAgent
 from livekit.plugins import openai, deepgram, silero
 from langchain_openai.embeddings import OpenAIEmbeddings
 from supabase import create_client, Client
+
+from fastapi import FastAPI
+from fastapi.responses import JSONResponse
+from fastapi.middleware.cors import CORSMiddleware
+
+
+app = FastAPI()
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # Specify the frontend URL
+    allow_credentials=True,
+    allow_methods=["*"],  # Allow all methods (GET, POST, etc.)
+    allow_headers=["*"],  # Allow all headers
+)
 
 # Load environment variables
 load_dotenv(dotenv_path=".env.local")
@@ -61,7 +76,7 @@ def retrieve_memories(query: str, table_name: str = "memories", k: int = 10) -> 
         ).execute()  # Execute the RPC call synchronously
 
         # Log the response for debugging
-        logger.debug(f"Supabase RPC response: {response}")
+        #logger.debug(f"Supabase RPC response: {response}")
 
         # Access the data from the response
         if response.data:  # Check if data is present
@@ -85,7 +100,7 @@ def enrich_with_rag(agent: VoicePipelineAgent, chat_ctx: llm.ChatContext):
     try:
         user_msg = chat_ctx.messages[-1]
         query = user_msg.content
-        logger.info(f"User query for RAG enrichment: {query}")
+        #logger.info(f"User query for RAG enrichment: {query}")
 
         # Retrieve relevant context using embeddings
         embedding_results = retrieve_memories(query)  # Call synchronously
@@ -112,8 +127,14 @@ def enrich_with_rag(agent: VoicePipelineAgent, chat_ctx: llm.ChatContext):
 
 
 
+conversation_logs = []
+log_lock = Lock()
+
 async def entrypoint(ctx: JobContext):
+    logger.info("Agent starting...")
     """Main entry point for the voice assistant."""
+    global conversation_logs  # Use a global or external storage for persistence
+
     initial_ctx = llm.ChatContext().append(
         role="system",
         text=(
@@ -130,7 +151,7 @@ async def entrypoint(ctx: JobContext):
     participant = await ctx.wait_for_participant()
     logger.info(f"Starting voice assistant for participant {participant.identity}")
 
-    # Initialize the voice assistant with plugins and context
+    # Initialize the assistant
     assistant = VoicePipelineAgent(
         vad=ctx.proc.userdata["vad"],
         stt=deepgram.STT(),
@@ -139,14 +160,40 @@ async def entrypoint(ctx: JobContext):
         chat_ctx=initial_ctx,
         interrupt_speech_duration=0.5,
         interrupt_min_words=0,
-        before_llm_cb=lambda agent, ctx: enrich_with_rag(agent, ctx),  # Use simplified RAG enrichment
+        before_llm_cb=lambda agent, ctx: enrich_with_rag(agent, ctx),
     )
 
     # Start the assistant
     assistant.start(ctx.room, participant)
 
-    # Greet the user
+    # Log and send events to the conversation logs
+    async def log_event(event):
+        async with log_lock:  # Lock for thread safety
+            conversation_logs.append(event)
+            logger.info(f"Event logged: {event}")
+
+
+    await log_event({"type": "message", "content": "Assistant started"})
     await assistant.say("Hey, what can I assist you with?", allow_interruptions=True)
+    await log_event({"type": "assistant_message", "content": "Hey, what can I assist you with?"})
+
+    return app
+
+@app.get("/")
+async def read_root():
+    return {"message": "Hello World!"}
+
+@app.get("/api/conversation")
+async def get_logs():
+    async with log_lock:
+        logs = list(conversation_logs)  # Return a copy of the logs
+    return JSONResponse(content={"logs": logs})
+
+
+@app.get("/api/conversation-logs")
+async def get_conversation_logs():
+    return {"logs": "example log"}
+
 
 
 if __name__ == "__main__":
