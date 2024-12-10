@@ -30,7 +30,7 @@ def read_files_from_folder(folder_path: str):
             file_contents[file] = f.read()
     return file_contents
 
-def embed_and_store(folder_path: str, chunk_size: int = 500, chunk_overlap: int = 50):
+def embed_and_store(folder_path: str, chunk_size: int = 1000, chunk_overlap: int = 100):
     """
     Embeds and stores text files into the Supabase 'memories' table with chunking.
 

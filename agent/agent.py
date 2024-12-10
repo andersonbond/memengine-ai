@@ -31,7 +31,7 @@ def prewarm(proc: JobProcess):
     """Pre-warm resources like VAD for faster startup."""
     proc.userdata["vad"] = silero.VAD.load()
 
-def retrieve_memories(query: str, table_name: str = "memories", k: int = 5) -> List[str]:
+def retrieve_memories(query: str, table_name: str = "memories", k: int = 10) -> List[str]:
     """
     Retrieves relevant embedding data from the Supabase 'memories' table using hybrid search.
 
@@ -61,7 +61,7 @@ def retrieve_memories(query: str, table_name: str = "memories", k: int = 5) -> L
         ).execute()  # Execute the RPC call synchronously
 
         # Log the response for debugging
-        #logger.debug(f"Supabase RPC response: {response}")
+        logger.debug(f"Supabase RPC response: {response}")
 
         # Access the data from the response
         if response.data:  # Check if data is present
@@ -93,7 +93,7 @@ def enrich_with_rag(agent: VoicePipelineAgent, chat_ctx: llm.ChatContext):
         if embedding_results:
             # Combine results into a single string (e.g., first result or joined results)
             enriched_context = embedding_results[0]  # Use the first result
-            logger.info(f"Enriching context with RAG results: {enriched_context}")
+            #logger.info(f"Enriching context with RAG results: {enriched_context}")
 
             rag_message = llm.ChatMessage.create(
                 text=f"Context:\n{enriched_context}",
