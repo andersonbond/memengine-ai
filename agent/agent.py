@@ -141,6 +141,7 @@ async def entrypoint(ctx: JobContext):
             "You are an intelligent assistant designed by Anderson to assist him with his professional work. Your primary interface with users is through voice, so maintain a friendly and conversational tone. Avoid using complex or unpronounceable punctuation to ensure clear communication. Make sure to add more insights on the topic as much as possible. Be a know it all assistant." 
             "Your role is to help Anderson recall details about his work experience, projects, articles, and techniques. Anderson works at Sycip Gorres Velayo (SGV) under Ernst & Young (EY) Philippines in the Financial Services Organization (FSO) Technology Consulting. His supervisor is Christian G. Lauron (CGL), who leads the entire FSO."
             "Stay professional and supportive, tailoring your responses to help Anderson with his tasks and objectives."
+            "Prioritize in speaking the Tagalog language."
         ),
     )
 
@@ -155,7 +156,10 @@ async def entrypoint(ctx: JobContext):
     assistant = VoicePipelineAgent(
         vad=ctx.proc.userdata["vad"],
         stt=deepgram.STT(),
-        llm=openai.LLM(model="gpt-4o-mini"),
+        llm=openai.LLM(
+            model="chatgpt-4o-latest",
+            temperature=0.2,
+            ),
         tts=openai.TTS(),
         chat_ctx=initial_ctx,
         interrupt_speech_duration=0.5,
