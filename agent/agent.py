@@ -1,7 +1,11 @@
 import logging
 import os
-from typing import List
-from asyncio import Lock
+from typing import List, Annotated
+from datetime import datetime
+import random
+import re
+import urllib
+import aiohttp
 
 from dotenv import load_dotenv
 from livekit.agents import (
@@ -12,24 +16,10 @@ from livekit.agents import (
     cli,
     llm,
 )
-from livekit.agents.pipeline import VoicePipelineAgent
+from livekit.agents.pipeline import AgentCallContext, VoicePipelineAgent
 from livekit.plugins import openai, deepgram, silero
 from langchain_openai.embeddings import OpenAIEmbeddings
 from supabase import create_client, Client
-
-from fastapi import FastAPI
-from fastapi.responses import JSONResponse
-from fastapi.middleware.cors import CORSMiddleware
-
-
-app = FastAPI()
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],  # Specify the frontend URL
-    allow_credentials=True,
-    allow_methods=["*"],  # Allow all methods (GET, POST, etc.)
-    allow_headers=["*"],  # Allow all headers
-)
 
 # Load environment variables
 load_dotenv(dotenv_path=".env.local")
@@ -125,23 +115,80 @@ def enrich_with_rag(agent: VoicePipelineAgent, chat_ctx: llm.ChatContext):
     except Exception as e:
         logger.error(f"Error during RAG enrichment: {e}")
 
+class AssistantFnc(llm.FunctionContext):
+    """
+    The class defines a set of LLM functions that the assistant can execute.
+    """
+
+    @llm.ai_callable()
+    async def get_weather(
+        self,
+        location: Annotated[
+            str, llm.TypeInfo(description="The location to get the weather for")
+        ],
+    ):
+        """Called when the user asks about the weather. This function will return the weather for the given location."""
+        # Clean the location string of special characters
+        location = re.sub(r"[^a-zA-Z0-9]+", " ", location).strip()
+
+        # When a function call is running, there are a couple of options to inform the user
+        # that it might take awhile:
+        # Option 1: you can use .say filler message immediately after the call is triggered
+        # Option 2: you can prompt the agent to return a text response when it's making a function call
+        agent = AgentCallContext.get_current().agent
+
+        if (
+            not agent.chat_ctx.messages
+            or agent.chat_ctx.messages[-1].role != "assistant"
+        ):
+            # skip if assistant already said something
+            filler_messages = [
+                "Let me check the weather in {location} for you.",
+                "Let me see what the weather is like in {location} right now.",
+                # LLM will complete this sentence if it is added to the end of the chat context
+                "The current weather in {location} is ",
+            ]
+            message = random.choice(filler_messages).format(location=location)
+            logger.info(f"saying filler message: {message}")
+
+            # NOTE: set add_to_chat_ctx=True will add the message to the end
+            #   of the chat context of the function call for answer synthesis
+            speech_handle = await agent.say(message, add_to_chat_ctx=True)  # noqa: F841
+
+        logger.info(f"getting weather for {location}")
+        url = f"https://wttr.in/{urllib.parse.quote(location)}?format=%C+%t"
+        weather_data = ""
+        async with aiohttp.ClientSession() as session:
+            async with session.get(url) as response:
+                if response.status == 200:
+                    # response from the function call is returned to the LLM
+                    weather_data = (
+                        f"The weather in {location} is {await response.text()}."
+                    )
+                    logger.info(f"weather data: {weather_data}")
+                else:
+                    raise Exception(
+                        f"Failed to get weather data, status code: {response.status}"
+                    )
+
+        # (optional) To wait for the speech to finish before giving results of the function call
+        # await speech_handle.join()
+        return weather_data
 
 
-conversation_logs = []
-log_lock = Lock()
+def prewarm_process(proc: JobProcess):
+    # preload silero VAD in memory to speed up session start
+    proc.userdata["vad"] = silero.VAD.load()
 
 async def entrypoint(ctx: JobContext):
-    logger.info("Agent starting...")
     """Main entry point for the voice assistant."""
-    global conversation_logs  # Use a global or external storage for persistence
-
     initial_ctx = llm.ChatContext().append(
         role="system",
         text=(
-            "You are an intelligent assistant designed by Anderson to assist him with his professional work. Your primary interface with users is through voice, so maintain a friendly and conversational tone. Avoid using complex or unpronounceable punctuation to ensure clear communication. Make sure to add more insights on the topic as much as possible. Be a know it all assistant." 
+            "You are Friday, an intelligent assistant designed by Anderson to assist him with his professional work. Your primary interface with users is through voice, so maintain a friendly and conversational tone. Avoid using complex or unpronounceable punctuation to ensure clear communication. Make sure to add more insights on the topic as much as possible. Be a know it all assistant." 
             "Your role is to help Anderson recall details about his work experience, projects, articles, and techniques. Anderson works at Sycip Gorres Velayo (SGV) under Ernst & Young (EY) Philippines in the Financial Services Organization (FSO) Technology Consulting. His supervisor is Christian G. Lauron (CGL), who leads the entire FSO."
             "Stay professional and supportive, tailoring your responses to help Anderson with his tasks and objectives."
-            "Prioritize in speaking the Tagalog language."
+             "Prioritize in speaking the Tagalog."
         ),
     )
 
@@ -152,53 +199,24 @@ async def entrypoint(ctx: JobContext):
     participant = await ctx.wait_for_participant()
     logger.info(f"Starting voice assistant for participant {participant.identity}")
 
-    # Initialize the assistant
+    # Initialize the voice assistant with plugins and context
     assistant = VoicePipelineAgent(
         vad=ctx.proc.userdata["vad"],
         stt=deepgram.STT(),
-        llm=openai.LLM(
-            model="chatgpt-4o-latest",
-            temperature=0.2,
-            ),
+        llm=openai.LLM(model="gpt-4o-mini"),
         tts=openai.TTS(),
         chat_ctx=initial_ctx,
+        fnc_ctx = AssistantFnc(),
         interrupt_speech_duration=0.5,
         interrupt_min_words=0,
-        before_llm_cb=lambda agent, ctx: enrich_with_rag(agent, ctx),
+        before_llm_cb=lambda agent, ctx: enrich_with_rag(agent, ctx),  # Use simplified RAG enrichment
     )
 
     # Start the assistant
     assistant.start(ctx.room, participant)
 
-    # Log and send events to the conversation logs
-    async def log_event(event):
-        async with log_lock:  # Lock for thread safety
-            conversation_logs.append(event)
-            logger.info(f"Event logged: {event}")
-
-
-    await log_event({"type": "message", "content": "Assistant started"})
+    # Greet the user
     await assistant.say("Hey, what can I assist you with?", allow_interruptions=True)
-    await log_event({"type": "assistant_message", "content": "Hey, what can I assist you with?"})
-
-    return app
-
-@app.get("/")
-async def read_root():
-    return {"message": "Hello World!"}
-
-@app.get("/api/conversation")
-async def get_logs():
-    async with log_lock:
-        logs = list(conversation_logs)  # Return a copy of the logs
-    return JSONResponse(content={"logs": logs})
-
-
-@app.get("/api/conversation-logs")
-async def get_conversation_logs():
-    return {"logs": "example log"}
-
-
 
 if __name__ == "__main__":
     cli.run_app(
