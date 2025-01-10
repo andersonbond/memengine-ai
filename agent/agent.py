@@ -115,6 +115,10 @@ def enrich_with_rag(agent: VoicePipelineAgent, chat_ctx: llm.ChatContext):
     except Exception as e:
         logger.error(f"Error during RAG enrichment: {e}")
 
+# def prewarm_process(proc: JobProcess):
+#     # preload silero VAD in memory to speed up session start
+#     proc.userdata["vad"] = silero.VAD.load()
+    
 class AssistantFnc(llm.FunctionContext):
     """
     The class defines a set of LLM functions that the assistant can execute.
@@ -131,28 +135,19 @@ class AssistantFnc(llm.FunctionContext):
         # Clean the location string of special characters
         location = re.sub(r"[^a-zA-Z0-9]+", " ", location).strip()
 
-        # When a function call is running, there are a couple of options to inform the user
-        # that it might take awhile:
-        # Option 1: you can use .say filler message immediately after the call is triggered
-        # Option 2: you can prompt the agent to return a text response when it's making a function call
         agent = AgentCallContext.get_current().agent
 
         if (
             not agent.chat_ctx.messages
             or agent.chat_ctx.messages[-1].role != "assistant"
         ):
-            # skip if assistant already said something
             filler_messages = [
                 "Let me check the weather in {location} for you.",
                 "Let me see what the weather is like in {location} right now.",
-                # LLM will complete this sentence if it is added to the end of the chat context
                 "The current weather in {location} is ",
             ]
             message = random.choice(filler_messages).format(location=location)
             logger.info(f"saying filler message: {message}")
-
-            # NOTE: set add_to_chat_ctx=True will add the message to the end
-            #   of the chat context of the function call for answer synthesis
             speech_handle = await agent.say(message, add_to_chat_ctx=True)  # noqa: F841
 
         logger.info(f"getting weather for {location}")
@@ -161,7 +156,6 @@ class AssistantFnc(llm.FunctionContext):
         async with aiohttp.ClientSession() as session:
             async with session.get(url) as response:
                 if response.status == 200:
-                    # response from the function call is returned to the LLM
                     weather_data = (
                         f"The weather in {location} is {await response.text()}."
                     )
@@ -170,15 +164,45 @@ class AssistantFnc(llm.FunctionContext):
                     raise Exception(
                         f"Failed to get weather data, status code: {response.status}"
                     )
-
-        # (optional) To wait for the speech to finish before giving results of the function call
-        # await speech_handle.join()
         return weather_data
 
+    @llm.ai_callable()
+    async def log_user_data(
+        self,
+        user_reference: Annotated[
+            str, llm.TypeInfo(description="The user's unique reference ID")
+        ],
+        user_firstname: Annotated[
+            str, llm.TypeInfo(description="The user's first name")
+        ],
+    ):
+        """Logs user data into the Supabase 'logs' table."""
+        supabase = create_client("https://your-project.supabase.co", "your-supabase-key")
 
-def prewarm_process(proc: JobProcess):
-    # preload silero VAD in memory to speed up session start
-    proc.userdata["vad"] = silero.VAD.load()
+        try:
+            # Insert data into the 'logs' table
+            response = supabase.table("logs").insert({
+                "user_reference": user_reference,
+                "user_firstname": user_firstname,
+            }).execute()
+
+            # Log the response for debugging
+            logger.info(f"Supabase response: {response}")
+
+            # Check if 'data' exists in the response
+            if hasattr(response, "data") and response.data:
+                logger.info(f"Data inserted successfully: {response.data}")
+                return f"Successfully logged data for user {user_firstname}."
+            else:
+                logger.error("Data insertion failed or response structure unexpected.")
+                return f"Failed to log data for user {user_firstname}."
+
+        except Exception as e:
+            # Catch and log unexpected errors
+            logger.error(f"Unexpected error logging data: {str(e)}")
+            return f"An unexpected error occurred while logging data for user {user_firstname}."
+
+        
 
 async def entrypoint(ctx: JobContext):
     """Main entry point for the voice assistant."""
@@ -217,6 +241,9 @@ async def entrypoint(ctx: JobContext):
 
     # Greet the user
     await assistant.say("Hey, what can I assist you with?", allow_interruptions=True)
+
+    # Log user data
+    await assistant.fnc_ctx.log_user_data(user_reference=participant.identity, user_firstname="Anderson")
 
 if __name__ == "__main__":
     cli.run_app(
