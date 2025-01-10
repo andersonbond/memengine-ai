@@ -177,8 +177,6 @@ class AssistantFnc(llm.FunctionContext):
         ],
     ):
         """Logs user data into the Supabase 'logs' table."""
-        supabase = create_client("https://your-project.supabase.co", "your-supabase-key")
-
         try:
             # Insert data into the 'logs' table
             response = supabase.table("logs").insert({
