@@ -6,8 +6,10 @@ import random
 import re
 import urllib
 import aiohttp
+import asyncio
 
 from dotenv import load_dotenv
+
 from livekit.agents import (
     AutoSubscribe,
     JobContext,
@@ -15,8 +17,11 @@ from livekit.agents import (
     WorkerOptions,
     cli,
     llm,
+    multimodal
 )
 from livekit.agents.pipeline import AgentCallContext, VoicePipelineAgent
+from livekit.agents.multimodal import MultimodalAgent
+
 from livekit.plugins import openai, deepgram, silero
 from langchain_openai.embeddings import OpenAIEmbeddings
 from supabase import create_client, Client
@@ -24,6 +29,7 @@ from supabase import create_client, Client
 # Load environment variables
 load_dotenv(dotenv_path=".env.local")
 logger = logging.getLogger("voice-agent")
+logger.setLevel(logging.INFO)
 
 # Initialize Supabase client
 SUPABASE_URL = os.getenv("SUPABASE_URL")
@@ -79,92 +85,37 @@ def retrieve_memories(query: str, table_name: str = "memories", k: int = 10) -> 
         logger.error(f"Error retrieving memories: {e}")
         return ["I'm sorry, I couldn't retrieve relevant information at this time."]
 
-def enrich_with_rag(agent: VoicePipelineAgent, chat_ctx: llm.ChatContext):
-    """
-    Enriches the LLM context with relevant information retrieved from the memories table.
+class ContextEnrichment:
+    @staticmethod
+    def enrich_with_rag(agent: VoicePipelineAgent, chat_ctx: llm.ChatContext):
+        """
+        Enriches the LLM context with relevant information retrieved from the memories table.
+        """
+        try:
+            user_msg = chat_ctx.messages[-1]
+            query = user_msg.content
 
-    Args:
-        agent (VoicePipelineAgent): The voice assistant pipeline agent.
-        chat_ctx (llm.ChatContext): The current chat context.
-    """
-    try:
-        user_msg = chat_ctx.messages[-1]
-        query = user_msg.content
-        #logger.info(f"User query for RAG enrichment: {query}")
+            # Retrieve relevant context using embeddings
+            embedding_results = retrieve_memories(query)
 
-        # Retrieve relevant context using embeddings
-        embedding_results = retrieve_memories(query)  # Call synchronously
+            if embedding_results:
+                enriched_context = embedding_results[0]
+                rag_message = llm.ChatMessage.create(
+                    text=f"Context:\n{enriched_context}",
+                    role="assistant",
+                )
+                chat_ctx.messages[-1] = rag_message
+                chat_ctx.messages.append(user_msg)
+            else:
+                logger.warning("No relevant context found for RAG enrichment.")
 
-        if embedding_results:
-            # Combine results into a single string (e.g., first result or joined results)
-            enriched_context = embedding_results[0]  # Use the first result
-            #logger.info(f"Enriching context with RAG results: {enriched_context}")
-
-            rag_message = llm.ChatMessage.create(
-                text=f"Context:\n{enriched_context}",
-                role="assistant",
-            )
-
-            # Add enriched context as the assistant's response
-            chat_ctx.messages[-1] = rag_message
-            chat_ctx.messages.append(user_msg)
-
-        else:
-            logger.warning("No relevant context found for RAG enrichment.")
-
-    except Exception as e:
-        logger.error(f"Error during RAG enrichment: {e}")
-
-# def prewarm_process(proc: JobProcess):
-#     # preload silero VAD in memory to speed up session start
-#     proc.userdata["vad"] = silero.VAD.load()
+        except Exception as e:
+            logger.error(f"Error during RAG enrichment: {e}")
     
 class AssistantFnc(llm.FunctionContext):
     """
     The class defines a set of LLM functions that the assistant can execute.
     """
-
-    @llm.ai_callable()
-    async def get_weather(
-        self,
-        location: Annotated[
-            str, llm.TypeInfo(description="The location to get the weather for")
-        ],
-    ):
-        """Called when the user asks about the weather. This function will return the weather for the given location."""
-        # Clean the location string of special characters
-        location = re.sub(r"[^a-zA-Z0-9]+", " ", location).strip()
-
-        agent = AgentCallContext.get_current().agent
-
-        if (
-            not agent.chat_ctx.messages
-            or agent.chat_ctx.messages[-1].role != "assistant"
-        ):
-            filler_messages = [
-                "Let me check the weather in {location} for you.",
-                "Let me see what the weather is like in {location} right now.",
-                "The current weather in {location} is ",
-            ]
-            message = random.choice(filler_messages).format(location=location)
-            logger.info(f"saying filler message: {message}")
-            speech_handle = await agent.say(message, add_to_chat_ctx=True)  # noqa: F841
-
-        logger.info(f"getting weather for {location}")
-        url = f"https://wttr.in/{urllib.parse.quote(location)}?format=%C+%t"
-        weather_data = ""
-        async with aiohttp.ClientSession() as session:
-            async with session.get(url) as response:
-                if response.status == 200:
-                    weather_data = (
-                        f"The weather in {location} is {await response.text()}."
-                    )
-                    logger.info(f"weather data: {weather_data}")
-                else:
-                    raise Exception(
-                        f"Failed to get weather data, status code: {response.status}"
-                    )
-        return weather_data
 
     @llm.ai_callable()
     async def log_user_data(
@@ -175,19 +126,25 @@ class AssistantFnc(llm.FunctionContext):
         user_firstname: Annotated[
             str, llm.TypeInfo(description="The user's first name")
         ],
+        user_lastname: Annotated[
+            str, llm.TypeInfo(description="The user's first name")
+        ],
     ):
         """Logs user data into the Supabase 'logs' table."""
+        # Ensure valid input before attempting to log
+        if not user_reference or not user_firstname or not user_lastname:
+            logger.warning("Invalid user data provided for logging.")
+            return "Invalid data provided. Please provide a valid user_reference and user_firstname."
+
         try:
             # Insert data into the 'logs' table
             response = supabase.table("logs").insert({
                 "user_reference": user_reference,
                 "user_firstname": user_firstname,
+                "user_lastname": user_lastname,
             }).execute()
 
-            # Log the response for debugging
-            logger.info(f"Supabase response: {response}")
-
-            # Check if 'data' exists in the response
+            # Check response
             if hasattr(response, "data") and response.data:
                 logger.info(f"Data inserted successfully: {response.data}")
                 return f"Successfully logged data for user {user_firstname}."
@@ -196,52 +153,108 @@ class AssistantFnc(llm.FunctionContext):
                 return f"Failed to log data for user {user_firstname}."
 
         except Exception as e:
-            # Catch and log unexpected errors
+            # Log unexpected errors
             logger.error(f"Unexpected error logging data: {str(e)}")
             return f"An unexpected error occurred while logging data for user {user_firstname}."
 
-        
+    
 
 async def entrypoint(ctx: JobContext):
-    """Main entry point for the voice assistant."""
-    initial_ctx = llm.ChatContext().append(
+    logger.info("Starting entrypoint")
+    
+    fnc_ctx = llm.FunctionContext()
+
+    @fnc_ctx.ai_callable()
+    async def log_user_data(
+        user_booking_number: Annotated[
+            str, llm.TypeInfo(description="The user's booking number")
+        ],
+        user_firstname: Annotated[
+            str, llm.TypeInfo(description="The user's first name")
+        ],
+        user_lastname: Annotated[
+            str, llm.TypeInfo(description="The user's last name")
+        ],
+        user_contact: Annotated[
+            str, llm.TypeInfo(description="The user's contact number")
+        ],
+    ):
+        """Logs user data into the Supabase 'logs' table."""
+        if not all([user_booking_number, user_firstname, user_lastname, user_contact]):
+            logger.warning("Invalid user data provided for logging.")
+            return "Invalid data provided. Please provide valid user details."
+
+        try:
+            # Insert data into the 'logs' table
+            response = supabase.table("logs").insert({
+                "booking_number": user_booking_number,
+                "user_firstname": user_firstname,
+                "user_lastname": user_lastname,
+                "contact_number": user_contact,
+            }).execute()
+
+            # Check response
+            if hasattr(response, "data") and response.data:
+                logger.info(f"Data inserted successfully: {response.data}")
+                return f"Successfully logged data for user {user_firstname}."
+            else:
+                logger.error("Data insertion failed or response structure unexpected.")
+                return f"Failed to log data for user {user_firstname}."
+            
+        except Exception as e:
+            # Log unexpected errors
+            logger.error(f"Unexpected error logging data: {str(e)}")
+            return f"An unexpected error occurred while logging data for user {user_firstname}."
+
+    await ctx.connect(auto_subscribe=AutoSubscribe.AUDIO_ONLY)
+    participant = await ctx.wait_for_participant()
+
+    chat_ctx = llm.ChatContext()
+    chat_ctx.append(
         role="system",
         text=(
-            "You are Friday, an intelligent assistant designed by Anderson to assist him with his professional work. Your primary interface with users is through voice, so maintain a friendly and conversational tone. Avoid using complex or unpronounceable punctuation to ensure clear communication. Make sure to add more insights on the topic as much as possible. Be a know it all assistant." 
-            "Your role is to help Anderson recall details about his work experience, projects, articles, and techniques. Anderson works at Sycip Gorres Velayo (SGV) under Ernst & Young (EY) Philippines in the Financial Services Organization (FSO) Technology Consulting. His supervisor is Christian G. Lauron (CGL), who leads the entire FSO."
-            "Stay professional and supportive, tailoring your responses to help Anderson with his tasks and objectives."
-             "Prioritize in speaking the Tagalog."
+            "You are Friday, an intelligent assistant of Anderson Airlines, a commercial airline company. "
+            "Your primary interface with users is through voice, so maintain a friendly and conversational tone."
+            "Avoid using complex or unpronounceable punctuation to ensure clear communication."
+            "Make sure to add more insights on the topic as much as possible. Be a know-it-all assistant."
+            #"Your role is to help Anderson recall details about his work experience, projects, articles, and techniques. Anderson works at Sycip Gorres Velayo (SGV) under Ernst & Young (EY) Philippines in the Financial Services Organization (FSO) Technology Consulting. His supervisor is Christian G. Lauron (CGL), who leads the entire FSO."
+            "Stay professional and supportive."
+            #"During the COVID-19 Pandemic, Anderson had a project along with Christian Lauron and Christian Chua on Vaccine Information Management System and Vaccine Certificate (VaxCert)."
+            "Prioritize speaking in Tagalog."
+            "You help users in answering the airline's policy on refundable tickets."
+            "Currently, the refund policy is only when the user wants to change their flight or refund their flight before 4 hours of the actual flight. If they want a refund, you will be asking their first name, last name, contact number and booking number."
+            "Verify by repeating the user's first name, last name, contact number and booking number."
+            "Once you have successfully inserted the user's data, tell the user that a human agent will call in 45-60 minutes."
+            #"You are strictly to provide response related to you (Friday), Anderson, SGV EY, Anderson's Projects, Bangko Sentral ng Pilipinas (BSP) circulars/policy or log the user's reference number, first name and last name. Just say you don't know when you are asked anything not related."
+            #"You are not interacting with Anderson but public users."
         ),
     )
 
-    logger.info(f"Connecting to room {ctx.room.name}")
-    await ctx.connect(auto_subscribe=AutoSubscribe.AUDIO_ONLY)
-
-    # Wait for the first participant to connect
-    participant = await ctx.wait_for_participant()
-    logger.info(f"Starting voice assistant for participant {participant.identity}")
-
-    # Initialize the voice assistant with plugins and context
-    assistant = VoicePipelineAgent(
-        vad=ctx.proc.userdata["vad"],
-        stt=deepgram.STT(),
-        llm=openai.LLM(model="gpt-4o-mini"),
-        tts=openai.TTS(),
-        chat_ctx=initial_ctx,
-        fnc_ctx = AssistantFnc(),
-        interrupt_speech_duration=0.5,
-        interrupt_min_words=0,
-        before_llm_cb=lambda agent, ctx: enrich_with_rag(agent, ctx),  # Use simplified RAG enrichment
+    agent = multimodal.MultimodalAgent(
+        model=openai.realtime.RealtimeModel(
+            modalities=["text"],
+            voice="alloy",
+            temperature=0.6,
+            instructions="You are a helpful assistant.",
+            turn_detection=openai.realtime.ServerVadOptions(
+                threshold=0.6, prefix_padding_ms=200, silence_duration_ms=500
+            ),
+            max_output_tokens=1500,
+        ),
+        fnc_ctx=fnc_ctx,
+        chat_ctx=chat_ctx,
     )
+    
+    @agent.on("agent_speech_committed")
+    @agent.on("agent_speech_interrupted")
+    def _on_agent_speech_created(msg: llm.ChatMessage):
+        max_ctx_len = 10
+        chat_ctx = agent.chat_ctx_copy()
+        if len(chat_ctx.messages) > max_ctx_len:
+            chat_ctx.messages = chat_ctx.messages[-max_ctx_len:]
+            asyncio.create_task(agent.set_chat_ctx(chat_ctx))
 
-    # Start the assistant
-    assistant.start(ctx.room, participant)
-
-    # Greet the user
-    await assistant.say("Hey, what can I assist you with?", allow_interruptions=True)
-
-    # Log user data
-    await assistant.fnc_ctx.log_user_data(user_reference=participant.identity, user_firstname="Anderson")
+    agent.start(ctx.room, participant)
 
 if __name__ == "__main__":
     cli.run_app(
