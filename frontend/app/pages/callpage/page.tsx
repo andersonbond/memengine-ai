@@ -39,7 +39,7 @@ export default function Page() {
   return (
     <main
       data-lk-theme="default"
-      className="h-[50vh] grid grid-rows-[2fr_1fr_auto]"
+      className="h-[100vh] grid grid-rows-[2fr_1fr_auto]"
     >
       <LiveKitRoom
         token={connectionDetails?.participantToken}
@@ -62,9 +62,9 @@ export default function Page() {
         <NoAgentNotification state={agentState} />
       </LiveKitRoom>
 
-      <div className="text-black">
+      {/* <div className="text-black">
         <LogsAndConversations />
-      </div>
+      </div> */}
     </main>
   );
 }

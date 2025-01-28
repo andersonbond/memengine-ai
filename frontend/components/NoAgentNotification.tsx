@@ -89,8 +89,6 @@ export function NoAgentNotification(props: NoAgentNotificationProps) {
               <path
                 d="M3.16602 3.16666L12.8327 12.8333M12.8327 3.16666L3.16602 12.8333"
                 stroke="#999999"
-                strokeWidth="1.5"
-                strokeLinecap="square"
               />
             </svg>
           </button>
