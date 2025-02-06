@@ -8,15 +8,16 @@ import {
   RoomAudioRenderer,
   VoiceAssistantControlBar,
   AgentState,
-  DisconnectButton,
+  DisconnectButton
 } from "@livekit/components-react";
 import { useCallback, useEffect, useState } from "react";
 import { MediaDeviceFailure } from "livekit-client";
 import type { ConnectionDetails } from "../../api/connection-details/route";
 import { NoAgentNotification } from "@/components/NoAgentNotification";
 import { CloseIcon } from "@/components/CloseIcon";
-import { LogsAndConversations } from "../../components/LogsAndConversation";
 import { useKrispNoiseFilter } from "@livekit/components-react/krisp";
+import Transcriptions from "@/app/components/Transcriptions";
+import { PhoneIcon } from "@heroicons/react/24/solid";
 
 export default function Page() {
   const [connectionDetails, updateConnectionDetails] = useState<
@@ -39,7 +40,7 @@ export default function Page() {
   return (
     <main
       data-lk-theme="default"
-      className="h-[100vh] grid grid-rows-[2fr_1fr_auto]"
+      className="min-h-screen bg-black text-white flex flex-col"
     >
       <LiveKitRoom
         token={connectionDetails?.participantToken}
@@ -54,17 +55,16 @@ export default function Page() {
         className="grid grid-rows-[2fr_1fr] items-center"
       >
         <SimpleVoiceAssistant onStateChange={setAgentState} />
+        <Transcriptions />
         <ControlBar
           onConnectButtonClicked={onConnectButtonClicked}
           agentState={agentState}
         />
         <RoomAudioRenderer />
         <NoAgentNotification state={agentState} />
+        
       </LiveKitRoom>
-
-      {/* <div className="text-black">
-        <LogsAndConversations />
-      </div> */}
+        
     </main>
   );
 }
@@ -83,7 +83,7 @@ function SimpleVoiceAssistant(props: {
         barCount={5}
         trackRef={audioTrack}
         className="agent-visualizer"
-        options={{ minHeight: 24 }}
+        options={{ minHeight: 28 }}
       />
     </div>
   );
@@ -99,7 +99,7 @@ function ControlBar(props: {
   }, []);
 
   return (
-    <div className="relative h-[100px]">
+    <div className="relative h-[200px]">
       <AnimatePresence>
         {props.agentState === "disconnected" && (
           <motion.button
@@ -110,7 +110,10 @@ function ControlBar(props: {
             className="uppercase absolute left-1/2 -translate-x-1/2 items-center px-6 py-3 bg-[#ffb703] hover:bg-[#f8c915] text-black rounded-lg shadow-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition"
             onClick={() => props.onConnectButtonClicked()}
           >
-            Start Call
+            <button className="flex items-center">
+              <PhoneIcon className="w-5 h-5 mr-2" />
+              Start Call
+            </button>
           </motion.button>
         )}
       </AnimatePresence>

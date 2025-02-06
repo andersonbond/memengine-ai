@@ -12,21 +12,24 @@ export default function Home() {
   };
 
   return (
-    <div className="flex flex-col items-center justify-center min-h-screen bg-gradient-to-b from-blue-50 to-blue-100 text-gray-800">
+    <div className="flex p-4 flex-col items-center justify-center min-h-screen bg-gradient-to-b from-blue-50 to-blue-100 text-gray-800">
       <div className="text-center mb-8 flex flex-col items-center">
-        <Image
+        {/* <Image
           src={logo}
           alt="Company Logo"
           width={50}
           height={50}
           className="mb-4"
-        />
-        <h1 className="text-5xl font-extrabold tracking-tight mb-4 text-gray-900">
-          Anderson Airlines Contact Center
+        /> */}
+       
+        <h1 className="mt-4 text-2xl font-extrabold tracking-tight mb-4 text-gray-900">
+          Anderson Bank & Insurance Customer Support
         </h1>
+        <p className='text-3xl mb-4 font-extrabold'><span className='text-5xl'>👩🏻‍🦰</span> Hello, I'm Friday!</p>
         <p className="text-lg text-gray-600">
-          Get assistance anytime with our AI-powered agent.
+          Get assistance anytime with Friday,
         </p>
+        <p>an AI agent.</p>
       </div>
 
       <button
@@ -34,14 +37,14 @@ export default function Home() {
           onClick={handleClick}
         >
           <PhoneIcon className="w-5 h-5 mr-2" />
-          Call an Agent
+          Call Friday
       </button>
 
       <div className="flex flex-col items-center space-y-6 mt-8">
         <div className="flex items-center px-6 py-4 bg-white rounded-lg shadow-md">
           <PhoneIcon className="w-6 h-6 text-blue-500 mr-4" />
           <p className="text-gray-700">
-            Need help? Our AI Agent is here to provide quick and accurate answers to your inquiries.
+            Need help? Friday is here to provide you quick and accurate answers to your inquiries.
           </p>
         </div>
 
