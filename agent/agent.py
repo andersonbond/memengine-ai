@@ -7,6 +7,7 @@ import re
 import urllib
 import aiohttp
 import asyncio
+import time
 
 from dotenv import load_dotenv
 
@@ -65,8 +66,8 @@ async def retrieve_policies(query: str) -> str:
     """Retrieve policy-related data from Supabase using embeddings."""
     logger.info(f"Starting policy retrieval: {query}")
     start_time = datetime.now()
-    await asyncio.sleep(3.0)
     try:
+        await asyncio.sleep(2)
         # Generate embedding for the query
         embeddings = OpenAIEmbeddings(openai_api_key=OPENAI_API_KEY)
         query_vector = embeddings.embed_query(query)
@@ -120,13 +121,14 @@ async def entrypoint(ctx: JobContext):
             str, llm.TypeInfo(description="Friday's evaluation based on the insurance policies")
         ],
     ):
+        await asyncio.sleep(2)
         """Logs user data into the database 'logs' table."""
         if not all([user_firstname, user_contact, user_plate_number, incident, evaluation]):
             logger.warning("Invalid user data provided for logging.")
             return "Invalid data provided. Please provide valid user details."
         
         try:
-            await asyncio.sleep(5.0)
+            await asyncio.sleep(2)
             response = await asyncio.to_thread(
                 lambda: supabase.table("logs").insert({
                     "user_firstname": user_firstname,
@@ -137,12 +139,12 @@ async def entrypoint(ctx: JobContext):
                 }).execute()
             )
             
-
             # Check response
             if hasattr(response, "data") and response.data:
                 logger.info(f"Data inserted successfully: {response.data}")
                 return f"Successfully logged data for user {user_firstname}."
             else:
+
                 logger.error("Data insertion failed or response structure unexpected.")
                 return f"Failed to log data for user {user_firstname}."
             
@@ -160,57 +162,18 @@ async def entrypoint(ctx: JobContext):
     await ctx.connect(auto_subscribe=AutoSubscribe.AUDIO_ONLY)
     participant = await ctx.wait_for_participant()
 
+
+    prompt_file_path = os.path.join(
+        os.path.dirname(__file__), "prompt", "system_prompt.txt"
+    )
+    # Read the system prompt from the file
+    with open(prompt_file_path, "r") as prompt_file:
+        system_prompt = prompt_file.read()
+
     chat_ctx = llm.ChatContext()
     chat_ctx.append(
         role="system",
-        text="""
-        You are **Friday**, the intelligent assistant of **Anderson Bank and Insurance**, a Philippines-based company.  
-        You interact primarily via **voice**, maintaining a **friendly, professional, and conversational tone**.  
-
-        ### **General Rules:**
-        - **Introduce yourself** at the start of every conversation.  
-        - **Ask for the customer's first name** and use it naturally.  
-        - **Speak clearly** and keep language simple.  
-        - **Remain professional, supportive, and empathetic.**  
-
-        ### Response Behavior:
-        - STRICTLY **Pause briefly** (5 seconds) when accessing external data
-        - Use filler phrases like "Let me check that..." during retrievals
-        - Maintain natural conversation flow between function calls
-
-        ### **Language Handling:**
-        - You may respond in **Tagalog** language, when the customer is speaking in tagalo language.
-        - You may respond in **English, Tagalog, or Taglish**, based on the customer’s preference.  
-
-        ### **Motorbike Insurance Claims:**
-        - Assist customers in understanding motorbike insurance policies.  
-        - When an accident is reported:
-        1. **Collect and verify**:
-            - First name   
-            - Contact number  
-            - Motorbike plate number  
-            - Incident details  
-        2. **Ask how the incident happened.**  
-        3. Call `'retrieve_policies_function'` to check the policy.  
-        4. **Assess eligibility** based on policy rules and insert **only** `"Eligible"` or `"Not Eligible"` in the evaluation field.  
-        5. **Inform the customer** that final approval depends on document review and investigation.  
-        6. Log the details using `'log_user_data'` function:
-            - First name 
-            - Contact number  
-            - Motorbike plate number  
-            - Incident  
-            - **Evaluation ("Eligible" / "Not Eligible")**  
-        7. DO NOT add placeholder values, make sure you have asked all the customer details and **Confirm with the customer** before inserting it to the database by calling the `'log_user_data'` function.  
-
-        ### **Customer Inquiries:**
-        - Retrieve policies via `'retrieve_policies_function'`—do not guess answers.  
-        - If the customer is frustrated, provide reassurance and inform them that a **human agent will contact them within 4 hours**.  
-
-        ### **Strict Limitations:**
-        - **Do NOT answer non-policy-related questions.**  
-        - **Do NOT discuss refunds.**  
-        - Your main goal is to **log the customer's details and eligibility assessment accurately**.  
-        """
+        text=system_prompt
     )
 
     agent = multimodal.MultimodalAgent(
@@ -221,7 +184,7 @@ async def entrypoint(ctx: JobContext):
             temperature=0.6,
             instructions="You are Friday, a helpful customer support assistant of Anderson Bank and Insurance Company.",
             turn_detection=openai.realtime.ServerVadOptions(
-                threshold=0.6, prefix_padding_ms=1000, silence_duration_ms=1200
+                threshold=0.6, prefix_padding_ms=300, silence_duration_ms=600
             )
         ),
         fnc_ctx=fnc_ctx,
@@ -230,7 +193,6 @@ async def entrypoint(ctx: JobContext):
     
     @agent.on("agent_speech_committed")
     def _on_agent_speech_created(msg: llm.ChatMessage):
-        # Trim chat context if it grows too long
         max_ctx_len = 100
         chat_context_copy = agent.chat_ctx_copy()
         if len(chat_context_copy.messages) > max_ctx_len:
@@ -238,10 +200,6 @@ async def entrypoint(ctx: JobContext):
             asyncio.create_task(agent.set_chat_ctx(chat_context_copy))
 
     agent.start(ctx.room, participant)
-   
-    # await asyncio.sleep(0.5) 
-    # chat_ctx.append(role="assistant", text="Hello, this is Friday. How can I assist you today?")
-    # await agent.set_chat_ctx(chat_ctx)
 
     async def transcribe_track(participant: RemoteParticipant, track: Track): 
         """Handles audio track transcription."""
