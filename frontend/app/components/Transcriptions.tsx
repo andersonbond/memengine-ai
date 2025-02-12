@@ -46,7 +46,7 @@ export default function Transcriptions() {
     <div 
       ref={containerRef}
       className="px-4 bg-neutral-700 rounded-lg mx-2 mb-4 max-h-[200px] overflow-y-auto"
-    >
+    >  
       <ul className="mt-2 leading-relaxed">
         {Object.values(transcriptions)
           .sort((a, b) => a.firstReceivedTime - b.firstReceivedTime)
