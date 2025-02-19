@@ -46,8 +46,10 @@ supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 embeddings = OpenAIEmbeddings(api_key=OPENAI_API_KEY)
 
 # AI TOOLS
-from tools.retrieve_policies import retrieve_policies as handle_retrieve_policies
 from tools.log_user_data import log_user_data as handle_log_user_data
+from tools.retrieve_policies import retrieve_policies as handle_retrieve_policies
+from tools.outbound_call import outbound_call as handle_outbound_call
+from tools.weather import get_weather
 
 def prewarm(proc: JobProcess):
     """Pre-warm resources like VAD for faster startup."""
@@ -97,6 +99,23 @@ async def entrypoint(ctx: JobContext):
         """Retrieve policy-related data from Anderson Bank and Insurance database."""
         return await handle_retrieve_policies(query)
 
+    @fnc_ctx.ai_callable()
+    async def outbound_call_function(
+        phone_number: Annotated[
+            str, llm.TypeInfo(description="Phone number to call: +639477886466")
+        ]
+    ) -> str:
+        """Called when the customer would like to be transferred to a real human agent. This function will add another participant to the call."""
+        call_sid = await handle_outbound_call("09477886466")
+        return f"Outbound call initiated with SID: {call_sid}"
+    
+    @fnc_ctx.ai_callable()
+    async def weather_check(location: Annotated[
+            str, llm.TypeInfo(description="The location to get the weather for")
+        ],) -> str:
+        """Called when the user asks about the weather. This function will return the weather for the given location."""
+        return await get_weather(location)
+
     await ctx.connect(auto_subscribe=AutoSubscribe.AUDIO_ONLY)
     participant = await ctx.wait_for_participant()
 
@@ -117,8 +136,10 @@ async def entrypoint(ctx: JobContext):
             voice="shimmer",
             temperature=0.6,
             instructions=(
-                "You are Friday, a helpful customer support agent of Anderson Bank and Insurance Company. "
-                "You must strictly follow all that is instructed in the system prompt. You are created by Anderson."
+                "You are Friday, a helpful customer support agent of Anderson Bank and Insurance, a Philippines based company."
+                "You interact primarily via **voice**, maintaining a **friendly, professional, and conversational tone**."
+                "You must strictly follow all that is instructed in the system prompt."
+                "Your **MAIN GOAL** is to insert into the database the customer's details and eligibility assessment accurately by calling the `'log_user_data_function'` function, but before inserting make sure you have verified it to the customer first."
             ),
             turn_detection=openai.realtime.ServerVadOptions(
                 threshold=0.6, prefix_padding_ms=300, silence_duration_ms=600
@@ -178,6 +199,6 @@ if __name__ == "__main__":
     cli.run_app(
         WorkerOptions(
             entrypoint_fnc=entrypoint,
-            prewarm_fnc=prewarm,
+            prewarm_fnc=prewarm
         ),
     )
