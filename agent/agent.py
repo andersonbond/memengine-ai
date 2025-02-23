@@ -119,7 +119,14 @@ async def entrypoint(ctx: JobContext):
     await ctx.connect(auto_subscribe=AutoSubscribe.AUDIO_ONLY)
     participant = await ctx.wait_for_participant()
 
-    # Load the system prompt from a file.
+     # Load the instruction prompt
+    instruction_prompt_file_path = os.path.join(
+        os.path.dirname(__file__), "prompt", "instructions.txt"
+    )
+    with open(instruction_prompt_file_path, "r") as instruction_prompt_file:
+        instruction_prompt = instruction_prompt_file.read()
+
+    # Load the system prompt
     prompt_file_path = os.path.join(
         os.path.dirname(__file__), "prompt", "system_prompt.txt"
     )
@@ -135,12 +142,7 @@ async def entrypoint(ctx: JobContext):
             # model="gpt-4o-realtime-preview",
             voice="shimmer",
             temperature=0.6,
-            instructions=(
-                "You are Friday, a helpful customer support agent of Anderson Bank and Insurance, a Philippines based company."
-                "You interact primarily via **voice**, maintaining a **friendly, professional, and conversational tone**."
-                "You must strictly follow all that is instructed in the system prompt."
-                "Your **MAIN GOAL** is to insert into the database the customer's details and eligibility assessment accurately by calling the `'log_user_data_function'` function, but before inserting make sure you have verified it to the customer first."
-            ),
+            instructions=(instruction_prompt),
             turn_detection=openai.realtime.ServerVadOptions(
                 threshold=0.6, prefix_padding_ms=300, silence_duration_ms=600
             )
