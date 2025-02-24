@@ -50,6 +50,7 @@ from tools.log_user_data import log_user_data as handle_log_user_data
 from tools.retrieve_policies import retrieve_policies as handle_retrieve_policies
 from tools.outbound_call import outbound_call as handle_outbound_call
 from tools.weather import get_weather
+from tools.worldtime import get_current_time
 
 def prewarm(proc: JobProcess):
     """Pre-warm resources like VAD for faster startup."""
@@ -115,6 +116,16 @@ async def entrypoint(ctx: JobContext):
         ],) -> str:
         """Called when the user asks about the weather. This function will return the weather for the given location."""
         return await get_weather(location)
+
+    @fnc_ctx.ai_callable()
+    async def time_check(timezone: str = "Asia/Manila") -> str:
+        """
+        Returns the current time for the given timezone.
+        Defaults to Philippines time (Asia/Manila) if no timezone is provided.
+        """
+        return await get_current_time(timezone)
+
+     # END FUNCTION CALLING: Register your AI callable functions.
 
     await ctx.connect(auto_subscribe=AutoSubscribe.AUDIO_ONLY)
     participant = await ctx.wait_for_participant()
