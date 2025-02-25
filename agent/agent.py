@@ -1,5 +1,7 @@
-import logging
+import sys
+print("Using Python executable:", sys.executable)
 import os
+import logging
 from typing import List, Annotated
 from datetime import datetime
 import random
@@ -8,6 +10,10 @@ import urllib
 import aiohttp
 import asyncio
 import time
+import json
+import importlib
+official_openai = importlib.import_module("openai")
+
 
 from dotenv import load_dotenv
 
@@ -51,6 +57,7 @@ from tools.retrieve_policies import retrieve_policies as handle_retrieve_policie
 from tools.outbound_call import outbound_call as handle_outbound_call
 from tools.weather import get_weather
 from tools.worldtime import get_current_time
+from tools.gmail import send_email
 
 def prewarm(proc: JobProcess):
     """Pre-warm resources like VAD for faster startup."""
@@ -124,18 +131,34 @@ async def entrypoint(ctx: JobContext):
         Defaults to Philippines time (Asia/Manila) if no timezone is provided.
         """
         return await get_current_time(timezone)
+    
+    @fnc_ctx.ai_callable()
+    async def send_via_gmail(message: str, email_address: str) -> str:
+        """
+        Sends an email using the analyzed message content provided by the voice AI.
+        
+        :param message: The analyzed message content.
+        :param email_address: The recipient's email address.
+        :return: A confirmation message indicating the email status.
+        """
 
+        subject = "No Subject"
 
+        send_result = await send_email(email_address, subject, message)
+        
+        return f"Email sent to {email_address}. {send_result}"
+        
     await ctx.connect(auto_subscribe=AutoSubscribe.AUDIO_ONLY)
     participant = await ctx.wait_for_participant()
 
-     # Load the instruction prompt
+    # Load the instruction prompt
     instruction_prompt_file_path = os.path.join(
         os.path.dirname(__file__), "prompt", "instructions.txt"
     )
+   
     with open(instruction_prompt_file_path, "r") as instruction_prompt_file:
         instruction_prompt = instruction_prompt_file.read()
-
+        #print("Instruction: ", instruction_prompt)
     # Load the system prompt
     prompt_file_path = os.path.join(
         os.path.dirname(__file__), "prompt", "system_prompt.txt"

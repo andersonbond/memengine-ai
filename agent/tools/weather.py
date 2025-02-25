@@ -5,7 +5,6 @@ import asyncio
 from datetime import datetime
 import logging
 
-from dotenv import load_dotenv
 from langchain_openai.embeddings import OpenAIEmbeddings
 from supabase import create_client, Client
 
@@ -19,9 +18,6 @@ supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 embeddings = OpenAIEmbeddings(api_key=OPENAI_API_KEY)
 
 logger = logging.getLogger(__name__)
-
-# Load environment variables
-load_dotenv(dotenv_path=".env.local")
 
 async def get_weather(location: str) -> str:
         """Called when the user asks about the weather. This function will return the weather for the given location."""

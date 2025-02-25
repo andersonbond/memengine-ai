@@ -12,4 +12,4 @@ fastapi
 uvicorn
 aiohttp~=3.11.11
 twilio~=9.4.5
-pytz
+aiosmtplib

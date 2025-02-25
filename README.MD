@@ -12,6 +12,9 @@
 - python3 -m pip install -r requirements.txt
 - python3 agent.py dev
 
+## to install Python packages
+- python3 -m pip install abc
+
 ## frontend
 - cd <frontend_dir>
 - pnpm install
