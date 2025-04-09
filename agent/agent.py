@@ -79,7 +79,7 @@ async def _forward_transcription(
 async def entrypoint(ctx: JobContext):
     logger.info("Starting entrypoint")
     
-    stt_instance = STT()
+    stt_instance = STT(model="nova-3")
     tasks = []  # To keep track of running tasks
 
     # FUNCTION CALLING: Register AI callable functions.
@@ -94,18 +94,26 @@ async def entrypoint(ctx: JobContext):
         evaluation: str
     ) -> str:
         """Logs customer data into the database."""
-        return await handle_log_user_data(
-            user_firstname,
-            user_contact,
-            user_plate_number,
-            incident,
-            evaluation
-        )
+        try:
+            return await handle_log_user_data(
+                user_firstname,
+                user_contact,
+                user_plate_number,
+                incident,
+                evaluation
+            )
+        except Exception as e:
+            logger.error(f"Error occurred: {e}")
+            return "An error occurred while processing your request."
 
     @fnc_ctx.ai_callable()
     async def retrieve_policies_function(query: str) -> str:
-        """Retrieve policy-related data from Anderson Bank and Insurance database."""
-        return await handle_retrieve_policies(query)
+        """Called when the user explains the incident or asks about the policies. Policy-related data from Anderson Bank and Insurance database."""
+        try:
+            return await handle_retrieve_policies(query)
+        except Exception as e:
+            logger.error(f"Error occurred: {e}")
+            return "An error occurred while processing your request."
 
     @fnc_ctx.ai_callable()
     async def outbound_call_function(
@@ -114,39 +122,54 @@ async def entrypoint(ctx: JobContext):
         ]
     ) -> str:
         """Called when the customer would like to be transferred to a real human agent. This function will add another participant to the call."""
-        call_sid = await handle_outbound_call("09477886466")
-        return f"Outbound call initiated with SID: {call_sid}"
+        try:
+            call_sid = await handle_outbound_call("09477886466")
+            return f"Outbound call initiated with SID: {call_sid}"
+        except Exception as e:
+            logger.error(f"Error occurred: {e}")
+            return "An error occurred while processing your request."
     
     @fnc_ctx.ai_callable()
     async def weather_check(location: Annotated[
             str, llm.TypeInfo(description="The location to get the weather for")
         ],) -> str:
         """Called when the user asks about the weather. This function will return the weather for the given location."""
-        return await get_weather(location)
+        try:
+            return await get_weather(location)
+        except Exception as e:
+            logger.error(f"Error occurred: {e}")
+            return "An error occurred while processing your request."
 
     @fnc_ctx.ai_callable()
     async def time_check(timezone: str = "Asia/Manila") -> str:
         """
-        Returns the current time for the given timezone.
+        Called when the user asks for the current time. Returns the current time for the given timezone.
         Defaults to Philippines time (Asia/Manila) if no timezone is provided.
         """
-        return await get_current_time(timezone)
+        try:
+            return await get_current_time(timezone)
+        except Exception as e:
+            logger.error(f"Error occurred: {e}")
+            return "An error occurred while processing your request."
     
     @fnc_ctx.ai_callable()
     async def send_via_gmail(message: str, email_address: str) -> str:
         """
-        Sends an email using the analyzed message content provided by the voice AI.
+        Called when the user asks to send an email. Sends an email using the analyzed message content provided by the voice AI.
         
         :param message: The analyzed message content.
         :param email_address: The recipient's email address.
         :return: A confirmation message indicating the email status.
         """
+        try:
+            subject = "No Subject"
 
-        subject = "No Subject"
-
-        send_result = await send_email(email_address, subject, message)
-        
-        return f"Email sent to {email_address}. {send_result}"
+            send_result = await send_email(email_address, subject, message)
+            
+            return f"Email sent to {email_address}. {send_result}"
+        except Exception as e:
+            logger.error(f"Error occurred: {e}")
+            return "An error occurred while processing your request."
         
     await ctx.connect(auto_subscribe=AutoSubscribe.AUDIO_ONLY)
     participant = await ctx.wait_for_participant()
@@ -199,7 +222,7 @@ async def entrypoint(ctx: JobContext):
 
     async def transcribe_track(participant: RemoteParticipant, track: Track): 
         """Handles audio track transcription."""
-        audio_stream = AudioStream(track)
+        audio_stream = AudioStream(track, noise_suppression=True)
         stt_forwarder = transcription.STTSegmentsForwarder(
             room=ctx.room, participant=participant, track=track 
         )

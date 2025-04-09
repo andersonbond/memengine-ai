@@ -17,8 +17,8 @@ export default function Transcriptions() {
 
     const updateTranscriptions = (
       segments: TranscriptionSegment[],
-      participant?: Participant,
-      publication?: TrackPublication
+      // participant?: Participant,
+      // publication?: TrackPublication
     ) => {
       setTranscriptions((prev) => {
         const newTranscriptions = { ...prev };

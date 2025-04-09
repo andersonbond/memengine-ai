@@ -33,7 +33,7 @@ async def log_user_data(
             str, llm.TypeInfo(description="The customer's incident")
         ],
         evaluation: Annotated[
-            str, llm.TypeInfo(description="Friday's evaluation based on the insurance policies")
+            str, llm.TypeInfo(description="Sam's evaluation based on the insurance policies")
         ],
     ):
        

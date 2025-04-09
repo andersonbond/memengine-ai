@@ -27,7 +27,7 @@ async def retrieve_policies(query: str) -> str:
     start_time = datetime.now()
     try:
         # Simulate a delay (if needed)
-        await asyncio.sleep(3)
+        await asyncio.sleep(1)
         
         # Generate embedding for the query
         embeddings = OpenAIEmbeddings(openai_api_key=OPENAI_API_KEY)
@@ -42,7 +42,7 @@ async def retrieve_policies(query: str) -> str:
                 "match_count": 7,
             }
         ).execute()
-        await asyncio.sleep(2)
+        await asyncio.sleep(1)
         if response.data:
             # Concatenate the retrieved policy data
             policies = "\n".join([item['content'] for item in response.data])

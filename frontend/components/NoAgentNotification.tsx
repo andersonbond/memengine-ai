@@ -67,8 +67,7 @@ export function NoAgentNotification(props: NoAgentNotificationProps) {
             </svg>
           </div>
           <p className="text-pretty w-max">
-            It&apos;s quiet... too quiet. Is your agent lost? Ensure your agent
-            is properly configured and running on your machine.
+            It&apos;s quiet... too quiet. Is your agent lost? Try to poke the agent by saying "Hello".
           </p>
           <a
             href="https://docs.livekit.io/agents/quickstarts/s2s/"

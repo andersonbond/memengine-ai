@@ -3,7 +3,7 @@ import "./globals.css";
 import { Public_Sans } from "next/font/google";
 
 export const metadata = {
-  title: "Friday, customer support",
+  title: "Sam, Voice AI Agent",
   description: "This is my Next.js application.",
 };
 
