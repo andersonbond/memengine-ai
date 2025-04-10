@@ -52,7 +52,7 @@ For development with live reloading:
 docker run -d --name awm-agent \
   -v $(pwd)/agent/.env.local:/app/.env.local \
   -v $(pwd)/agent:/app \
-  awm-agent
+  awm-agent python agent.py dev
 
 # Frontend (Next.js)
 docker run -d --name awm-frontend \
