@@ -23,9 +23,9 @@ export default function Home() {
         /> */}
        
         <h1 className="mt-4 text-2xl font-extrabold tracking-tight mb-4 text-gray-900">
-          Anderson Bank & Insurance Customer Support
+          <span className='text-5xl'>👩🏻‍🦰</span> Hello, I'm Sam!
         </h1>
-        <p className='text-3xl mb-4 font-extrabold'><span className='text-5xl'>👩🏻‍🦰</span> Hello, I'm Sam!</p>
+        {/* <p className='text-3xl mb-4 font-extrabold'></p> */}
         <p className="text-lg text-gray-600">
           Get assistance anytime with Sam,
         </p>

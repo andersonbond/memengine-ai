@@ -52,6 +52,7 @@ supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 embeddings = OpenAIEmbeddings(api_key=OPENAI_API_KEY)
 
 # AI TOOLS
+from tools.embed_memory import embed_and_store
 from tools.log_user_data import log_user_data as handle_log_user_data
 from tools.retrieve_policies import retrieve_policies as handle_retrieve_policies
 from tools.outbound_call import outbound_call as handle_outbound_call
@@ -84,6 +85,27 @@ async def entrypoint(ctx: JobContext):
 
     # FUNCTION CALLING: Register AI callable functions.
     fnc_ctx = llm.FunctionContext()
+
+    @fnc_ctx.ai_callable()
+    async def embed_memory(
+        user: str,
+        memory: str
+    ) -> str:
+        """Called when the user asks to store a memory when it wants to use it for future reference, or share personal schedule availibility."""
+        try:
+            # Get the current date and time
+            current_datetime = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+            logger.info(f"Current date and time: {current_datetime}")
+            # Create a memory string in a structured format
+            memory_content = f"User: {user}\nDate: {current_datetime}\nMemory: {memory}"
+            
+            # Use the embed_and_store function with the new implementation
+            await embed_and_store(content=memory_content, user=user)
+            
+            return f"Memory has been stored for {user}: {memory}"
+        except Exception as e:
+            logger.error(f"Error adding memory: {e}")
+            return "An error occurred while adding memory."
 
     @fnc_ctx.ai_callable()
     async def log_user_data_function(
@@ -143,7 +165,7 @@ async def entrypoint(ctx: JobContext):
     @fnc_ctx.ai_callable()
     async def time_check(timezone: str = "Asia/Manila") -> str:
         """
-        Called when the user asks for the current time. Returns the current time for the given timezone.
+        Called when the user asks for the current date and time. Returns the current date and time for the given timezone.
         Defaults to Philippines time (Asia/Manila) if no timezone is provided.
         """
         try:
@@ -188,6 +210,10 @@ async def entrypoint(ctx: JobContext):
     )
     with open(prompt_file_path, "r") as prompt_file:
         system_prompt = prompt_file.read()
+
+     # Add current date and time to the system prompt for context.
+    current_datetime = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+    system_prompt += f"\n\nCurrent Date and Time: {current_datetime}"
 
     chat_ctx = llm.ChatContext()
     chat_ctx.append(role="system", text=system_prompt)
