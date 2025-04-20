@@ -2,7 +2,7 @@ import sys
 print("Using Python executable:", sys.executable)
 import os
 import logging
-from typing import List, Annotated
+from typing import List, Annotated, Optional
 from datetime import datetime
 import random
 import re
@@ -37,8 +37,19 @@ from livekit.plugins import openai, deepgram, silero
 from langchain_openai.embeddings import OpenAIEmbeddings
 from supabase import create_client, Client
 
+from tools.embed_memory import embed_and_store
+from tools.log_user_data import log_user_data as handle_log_user_data
+from tools.retrieve_policies import retrieve_policies as handle_retrieve_policies
+from tools.outbound_call import outbound_call as handle_outbound_call
+from tools.weather import get_weather
+from tools.worldtime import get_current_time
+from tools.gmail import send_email
+from tools.timekeeper import record_time, get_time_records
+
 # Load environment variables
 load_dotenv(dotenv_path=".env.local")
+
+# Initialize logger
 logger = logging.getLogger("voice-agent")
 logger.setLevel(logging.INFO)
 
@@ -50,15 +61,6 @@ supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
 # Initialize OpenAI embeddings
 embeddings = OpenAIEmbeddings(api_key=OPENAI_API_KEY)
-
-# AI TOOLS
-from tools.embed_memory import embed_and_store
-from tools.log_user_data import log_user_data as handle_log_user_data
-from tools.retrieve_policies import retrieve_policies as handle_retrieve_policies
-from tools.outbound_call import outbound_call as handle_outbound_call
-from tools.weather import get_weather
-from tools.worldtime import get_current_time
-from tools.gmail import send_email
 
 def prewarm(proc: JobProcess):
     """Pre-warm resources like VAD for faster startup."""
@@ -193,6 +195,72 @@ async def entrypoint(ctx: JobContext):
             logger.error(f"Error occurred: {e}")
             return "An error occurred while processing your request."
         
+    @fnc_ctx.ai_callable()
+    async def record_time_function(
+        username: str,
+        category: str,
+        remarks: Optional[str] = None
+    ) -> str:
+        """
+        Records time in/out for a user in the timesheet table.
+        
+        Args:
+            username (str): The username of the person recording time
+            category (str): Either 'time_in' or 'time_out'
+            remarks (Optional[str]): Additional remarks about the time record
+            
+        Returns:
+            str: A message indicating the success or failure of the operation
+        """
+        try:
+            result = await record_time(username, category, remarks)
+            if result["success"]:
+                return result["message"]
+            else:
+                return f"Failed to record time: {result.get('error', 'Unknown error')}"
+        except Exception as e:
+            logger.error(f"Error in record_time_function: {e}")
+            return "An error occurred while recording time."
+
+    @fnc_ctx.ai_callable()
+    async def get_time_records_function(
+        username: str,
+        date: Optional[str] = None
+    ) -> str:
+        """
+        Retrieves time records for a user from the timesheet table.
+        
+        Args:
+            username (str): The username to get records for
+            date (Optional[str]): Specific date to filter records (YYYY-MM-DD format)
+            
+        Returns:
+            str: A formatted message containing the time records or an error message
+        """
+        try:
+            result = await get_time_records(username, date)
+            if result["success"]:
+                if not result["records"]:
+                    return f"No time records found for {username}"
+                
+                # Format the records
+                records_text = []
+                for record in result["records"]:
+                    record_text = (
+                        f"Date: {record['date']}, Time: {record['time']}, "
+                        f"Type: {record['category']}"
+                    )
+                    if record['remarks']:
+                        record_text += f", Remarks: {record['remarks']}"
+                    records_text.append(record_text)
+                
+                return "\n".join(records_text)
+            else:
+                return f"Failed to retrieve time records: {result.get('error', 'Unknown error')}"
+        except Exception as e:
+            logger.error(f"Error in get_time_records_function: {e}")
+            return "An error occurred while retrieving time records."
+
     await ctx.connect(auto_subscribe=AutoSubscribe.AUDIO_ONLY)
     participant = await ctx.wait_for_participant()
 
@@ -213,7 +281,8 @@ async def entrypoint(ctx: JobContext):
 
      # Add current date and time to the system prompt for context.
     current_datetime = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-    system_prompt += f"\n\nCurrent Date and Time: {current_datetime}"
+    username = "Anderson"
+    system_prompt += f"\n\nUsername: {username}\n\nCurrent Date and Time: {current_datetime}"
 
     chat_ctx = llm.ChatContext()
     chat_ctx.append(role="system", text=system_prompt)

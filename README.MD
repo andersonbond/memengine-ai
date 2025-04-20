@@ -21,27 +21,27 @@
 
 2. **Build the agent Docker image**:
    ```bash
-   docker build -t awm-agent ./agent
+   docker build -t sam-agent ./agent
    ```
 
 3. **Run the agent container**:
    ```bash
-    docker run -d --name awm-agent \
+    docker run -d --name sam-agent \
     -v $(pwd)/agent/.env.local:/app/.env.local \
-    awm-agent python agent.py start
+    sam-agent python agent.py start
    ```
 
 4. **Build the frontend Docker image**:
    ```bash
-   docker build -t awm-frontend ./frontend
+   docker build -t sam-frontend ./frontend
    ```
 
 5. **Run the frontend container**:
    ```bash
-   docker run -d --name awm-frontend \
+   docker run -d --name sam-frontend \
      -p 3000:3000 \
      -v $(pwd)/frontend/.env.local:/app/.env.local \
-     awm-frontend
+     sam-frontend
    ```
 
 ### Development Mode
