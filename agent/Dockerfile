@@ -1,6 +1,10 @@
 # Python 3.11 slim image as base
 FROM python:3.11-slim
 
+# Set timezone to Asia/Manila
+ENV TZ=Asia/Manila
+RUN ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && echo $TZ > /etc/timezone
+
 # Working directory
 WORKDIR /app
 
@@ -22,5 +26,8 @@ COPY . .
 ENV PYTHONUNBUFFERED=1
 ENV PYTHONPATH=/app
 
-# Set default command to run in dev mode
-CMD ["python", "agent.py", "dev"]
+# Expose port
+EXPOSE 8080
+
+# Run the application
+CMD ["python", "agent.py"]

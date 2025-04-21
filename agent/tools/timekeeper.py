@@ -47,9 +47,10 @@ async def record_time(
         if category not in ['time_in', 'time_out']:
             raise ValueError("Category must be either 'time_in' or 'time_out'")
         
-        # Get current date and time
-        current_date = datetime.now().strftime('%Y-%m-%d')
-        current_time = datetime.now().strftime('%H:%M:%S')
+        # Get current date and time in a single call
+        now = datetime.now()
+        current_date = now.strftime('%Y-%m-%d')
+        current_time = now.strftime('%H:%M:%S')
         
         # Prepare data for insertion
         time_record = {

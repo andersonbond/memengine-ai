@@ -12,6 +12,7 @@ import asyncio
 import time
 import json
 import importlib
+from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
 official_openai = importlib.import_module("openai")
 
 
@@ -287,21 +288,52 @@ async def entrypoint(ctx: JobContext):
     chat_ctx = llm.ChatContext()
     chat_ctx.append(role="system", text=system_prompt)
 
-    agent = multimodal.MultimodalAgent(
-        model=openai.realtime.RealtimeModel(
+    # Initialize the OpenAI realtime model with retry logic
+    @retry(
+        stop=stop_after_attempt(3),
+        wait=wait_exponential(multiplier=1, min=4, max=10),
+        retry=retry_if_exception_type(Exception)
+    )
+    async def create_realtime_model():
+        return openai.realtime.RealtimeModel(
             model="gpt-4o-mini-realtime-preview",
-            # model="gpt-4o-realtime-preview",
             voice="shimmer",
             temperature=0.6,
             instructions=(instruction_prompt),
             turn_detection=openai.realtime.ServerVadOptions(
                 threshold=0.6, prefix_padding_ms=300, silence_duration_ms=600
             )
-        ),
+        )
+
+    try:
+        realtime_model = await create_realtime_model()
+    except Exception as e:
+        logger.error(f"Failed to create OpenAI realtime model after retries: {e}")
+        raise
+
+    agent = multimodal.MultimodalAgent(
+        model=realtime_model,
         fnc_ctx=fnc_ctx,
         chat_ctx=chat_ctx,
     )
-    
+
+    # Add error handling for agent events
+    @agent.on("error")
+    def handle_agent_error(error: Exception):
+        logger.error(f"Agent error occurred: {error}")
+        if "OpenAI S2S connection closed unexpectedly" in str(error):
+            logger.info("Attempting to reconnect to OpenAI...")
+            asyncio.create_task(reconnect_agent())
+
+    async def reconnect_agent():
+        try:
+            logger.info("Reconnecting agent...")
+            new_model = await create_realtime_model()
+            agent.model = new_model
+            logger.info("Successfully reconnected to OpenAI")
+        except Exception as e:
+            logger.error(f"Failed to reconnect to OpenAI: {e}")
+
     @agent.on("agent_speech_committed")
     def _on_agent_speech_created(msg: llm.ChatMessage):
         max_ctx_len = 100
