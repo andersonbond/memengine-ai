@@ -30,4 +30,4 @@ ENV PYTHONPATH=/app
 EXPOSE 8080
 
 # Run the application
-CMD ["python", "agent.py"]
+CMD ["python", "agent.py", "dev"]
