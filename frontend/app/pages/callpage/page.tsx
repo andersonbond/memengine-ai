@@ -112,7 +112,7 @@ function ControlBar(props: {
           >
             <button className="flex items-center">
               <PhoneIcon className="w-5 h-5 mr-2" />
-              Start Call
+              Start
             </button>
           </motion.button>
         )}

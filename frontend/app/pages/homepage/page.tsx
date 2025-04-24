@@ -27,17 +27,30 @@ export default function Home() {
         </h1>
         {/* <p className='text-3xl mb-4 font-extrabold'></p> */}
         <p className="text-lg text-gray-600">
-          Get assistance anytime with Sam,
+          Your SGV FSO AI Voice Agent
         </p>
-        <p>an AI Voice Agent.</p>
+      </div>
+      <div className="bg-white p-6 rounded-2xl shadow-md">
+        <h3 className="text-xl font-semibold mb-4 text-gray-800">Features:</h3>
+        <ul className="space-y-3 text-gray-700">
+          <li>
+            📂 <strong>Domain Knowledge:</strong> Upload files to provide context, allowing me to deliver more accurate and tailored responses.
+          </li>
+          <li>
+            🌤️ <strong>Weather:</strong> Ask me for the current weather and time—always up-to-date.
+          </li>
+          <li>
+            ⏱️ <strong>Timekeeping:</strong> Clock in and out with simple commands to track your work hours effortlessly.
+          </li>
+        </ul>
       </div>
 
       <button
-          className="flex items-center px-6 py-3 bg-[#ffb703] hover:bg-[#f8c915] text-black rounded-lg shadow-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition"
+          className="flex items-center mt-6 px-6 py-3 bg-[#ffb703] hover:bg-[#f8c915] text-black rounded-lg shadow-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition"
           onClick={handleClick}
         >
           <PhoneIcon className="w-5 h-5 mr-2" />
-          Call Sam
+          Activate Sam
       </button>
 
       <div className="flex flex-col items-center space-y-6 mt-8">
