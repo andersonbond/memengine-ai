@@ -83,14 +83,6 @@ async def _forward_transcription(
 async def entrypoint(ctx: JobContext):
     logger.info("Starting entrypoint")
     
-    # Configure LiveKit connection settings
-    ctx.room.configure(
-        ping_interval=10,  # Send ping every 10 seconds
-        ping_timeout=30,   # Wait 30 seconds for pong response
-        reconnect_interval=5,  # Wait 5 seconds between reconnection attempts
-        max_reconnect_attempts=5  # Maximum number of reconnection attempts
-    )
-
     # Add connection error handling
     @ctx.room.on("connection_state_changed")
     async def handle_connection_state(state):

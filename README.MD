@@ -79,6 +79,9 @@ docker rm awm-agent
 docker exec -it awm-agent /bin/bash
 ```
 
+### Running
+- docker compose down && docker compose build --no-cache && docker compose up -d
+
 ### Environment Variables
 Make sure your `.env.local` file contains all necessary environment variables:
 - `SUPABASE_URL`
