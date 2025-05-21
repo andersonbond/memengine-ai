@@ -34,13 +34,13 @@ export default function Home() {
         <h3 className="text-xl font-semibold mb-4 text-gray-800">Features:</h3>
         <ul className="space-y-3 text-gray-700">
           <li>
-            📂 <strong>Domain Knowledge:</strong> Upload files to provide context, allowing me to deliver more accurate and tailored responses.
+            📂 <strong>Domain Knowledge:</strong> I can deliver accurate and tailored responses based on given data sources.
           </li>
           <li>
             🌤️ <strong>Weather:</strong> Ask me for the current weather and time—always up-to-date.
           </li>
           <li>
-            ⏱️ <strong>Timekeeping:</strong> Clock in and out with simple commands to track your work hours effortlessly.
+            ⏱️ <strong>Tools:</strong> I can store and extract data in a database, and generate a report for you..
           </li>
         </ul>
       </div>

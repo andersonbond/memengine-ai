@@ -1,14 +1,14 @@
-Anderson Bank Motorbike Insurance Claims Processing Policy
+Anderson Auto Insurance Claims Processing Policy
 
 1. Purpose
-This policy outlines the procedures and guidelines for processing motorbike insurance claims, ensuring claims are handled efficiently, fairly, and in compliance with applicable regulations and contractual obligations.
+This policy outlines the procedures and guidelines for processing auto insurance claims, ensuring claims are handled efficiently, fairly, and in compliance with applicable regulations and contractual obligations.
 
 2. Scope
-This policy applies to all motorbike insurance claims submitted by policyholders, as well as to all staff involved in the claims processing cycle. It covers initial claim intake, investigation, evaluation, decision-making, and payment processes.
+This policy applies to all auto insurance claims submitted by policyholders, as well as to all staff involved in the claims processing cycle. It covers initial claim intake, investigation, evaluation, decision-making, and payment processes.
 
 3. Definitions
-Policyholder: The individual or entity holding the motorbike insurance policy.
-Claim: A request for compensation arising from a motorbike-related incident covered under the insurance policy.
+Policyholder: The individual or entity holding the auto insurance policy.
+Claim: A request for compensation arising from a auto-related incident covered under the insurance policy.
 Adjuster: A staff member or third-party representative assigned to investigate and assess the claim.
 Incident Report: A documented account of the accident or event leading to the claim submission.
 4. Claims Submission and Initial Processing
@@ -18,7 +18,7 @@ Customer Requirements:
 - A completed claim form provided by the insurer.
 - A detailed incident report including the date, time, and location of the event.
 - Photographic evidence of the damage or accident scene (where applicable).
-- A copy of the motorbike registration and, if available, a police report.
+- A copy of the auto registration and, if available, a police report.
 - Proof of identity and valid policy documents.
 - Claims must be submitted via designated channels (online portal, customer service hotline, or branch office) within the time limits specified in the policy terms.
 
@@ -75,11 +75,106 @@ This policy is reviewed annually and updated as necessary to reflect changes in 
 
 
 
-In the event of a motorbike crash or related incident, policyholders may be eligible to file a claim under the motorbike insurance policy. Eligible incidents include, but are not limited to, the following situations:
+In the event of a auto crash or related incident, policyholders may be eligible to file a claim under the auto insurance policy. Eligible incidents include, but are not limited to, the following situations:
 
-1. A collision with another vehicle or stationary object resulting in physical damage to the motorbike.
+1. A collision with another vehicle or stationary object resulting in physical damage to the auto.
 2. Incidents involving loss of control, where external factors such as road conditions or weather contributed to the accident.
-3. Accidents that occur while the motorbike is being legally operated on public roads.
-4. Incidents where the motorbike sustains damage due to unexpected events such as falling objects or debris during transit.
+3. Accidents that occur while the auto is being legally operated on public roads.
+4. Incidents where the auto sustains damage due to unexpected events such as falling objects or debris during transit.
 
 To process your claim, please ensure that you have documented the incident thoroughly, including a detailed incident report, photographs of the damage, and any available police or third-party reports. Claims submitted with complete and accurate documentation will be processed in accordance with the established claims processing guidelines.
+
+
+
+Anderson Data Governance for Rural Bank
+
+1. Purpose
+This policy establishes a simplified framework for managing the bank’s data assets to ensure accuracy, security, and compliance with applicable laws and regulations.
+
+2. Scope
+Applies to all employees, contractors, and systems handling customer, financial, and operational data of the rural bank.
+
+3. Governance Structure
+
+Data Governance Committee (DGC): Small oversight group (e.g., Chief Data Officer, IT Manager, Compliance Officer) meeting quarterly to review data practices.
+
+Data Stewards: Assigned per functional area (e.g., Lending, Operations) to enforce day-to-day data handling.
+
+4. Roles & Responsibilities
+
+DGC: Approve policies, review reports, prioritize improvements.
+
+Data Stewards: Classify data, monitor quality, report incidents.
+
+All Staff: Comply with data handling rules; report any breaches or quality issues.
+
+5. Data Classification
+
+Public: Marketing brochures, branch locations.
+
+Internal: Employee directories, internal memos.
+
+Confidential: Customer account numbers, transaction records.
+
+Restricted: Financial statements, loan approvals.
+
+6. Data Access & Usage
+
+Access granted on a need-to-know basis.
+
+Regular reviews of user permissions (at least annually).
+
+All access must be logged and monitored.
+
+7. Data Quality
+
+Data Stewards validate critical data (e.g., customer information) upon entry and quarterly.
+
+Errors to be logged and corrected within 5 business days.
+
+8. Data Security
+
+Encryption of sensitive data at rest and in transit.
+
+Regular backups (weekly) stored securely off-site.
+
+Antivirus and firewall protections on all endpoints.
+
+9. Compliance & Legal
+
+Adhere to national banking regulations and data protection laws.
+
+Conduct annual compliance audits.
+
+10. Incident Management
+
+Report suspected breaches immediately to the IT Manager.
+
+Investigate within 48 hours and document findings.
+
+Notify affected parties as required by law.
+
+11. Training & Awareness
+
+Annual data governance training for all staff.
+
+New-hire orientation includes basic data handling practices.
+
+12. Review & Revision
+
+Policy to be reviewed by the DGC annually.
+
+Updates published to all staff and posted in the intranet.
+
+13. Data Retention
+Financial records older than 5 years must be archived
+Data Stewards to review retention schedules annually to confirm appropriateness and legal compliance.
+After the retention period, data must be securely disposed of using methods appropriate to its classification (e.g., shredding physical documents, secure deletion of electronic records).
+
+
+Approval:
+
+Chief Executive Officer
+Date: May 7, 2025
+
+Version: 1.0  |  Effective Date: May 7, 2025

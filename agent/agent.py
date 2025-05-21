@@ -83,6 +83,25 @@ async def _forward_transcription(
 async def entrypoint(ctx: JobContext):
     logger.info("Starting entrypoint")
     
+    # Configure LiveKit connection settings
+    ctx.room.configure(
+        ping_interval=10,  # Send ping every 10 seconds
+        ping_timeout=30,   # Wait 30 seconds for pong response
+        reconnect_interval=5,  # Wait 5 seconds between reconnection attempts
+        max_reconnect_attempts=5  # Maximum number of reconnection attempts
+    )
+
+    # Add connection error handling
+    @ctx.room.on("connection_state_changed")
+    async def handle_connection_state(state):
+        logger.info(f"Connection state changed to: {state}")
+        if state == "disconnected":
+            logger.info("Attempting to reconnect...")
+            try:
+                await ctx.room.reconnect()
+            except Exception as e:
+                logger.error(f"Reconnection failed: {e}")
+
     stt_instance = STT(model="nova-3")
     tasks = []  # To keep track of running tasks
 
@@ -133,7 +152,7 @@ async def entrypoint(ctx: JobContext):
 
     @fnc_ctx.ai_callable()
     async def retrieve_policies_function(query: str) -> str:
-        """Called when the user explains the incident or asks about the policies. Policy-related data from Anderson Bank and Insurance database."""
+        """Called when the user explains the incident or asks about insurance and data governance policies. Policy-related and data governance from Anderson Bank and Insurance database."""
         try:
             return await handle_retrieve_policies(query)
         except Exception as e:
@@ -154,16 +173,16 @@ async def entrypoint(ctx: JobContext):
             logger.error(f"Error occurred: {e}")
             return "An error occurred while processing your request."
     
-    @fnc_ctx.ai_callable()
-    async def weather_check(location: Annotated[
-            str, llm.TypeInfo(description="The location to get the weather for")
-        ],) -> str:
-        """Called when the user asks about the weather. This function will return the weather for the given location."""
-        try:
-            return await get_weather(location)
-        except Exception as e:
-            logger.error(f"Error occurred: {e}")
-            return "An error occurred while processing your request."
+    # @fnc_ctx.ai_callable()
+    # async def weather_check(location: Annotated[
+    #         str, llm.TypeInfo(description="The location to get the weather for")
+    #     ],) -> str:
+    #     """Called when the user asks about the weather. This function will return the weather for the given location."""
+    #     try:
+    #         return await get_weather(location)
+    #     except Exception as e:
+    #         logger.error(f"Error occurred: {e}")
+    #         return "An error occurred while processing your request."
 
     @fnc_ctx.ai_callable()
     async def time_check(timezone: str = "Asia/Manila") -> str:
@@ -177,24 +196,24 @@ async def entrypoint(ctx: JobContext):
             logger.error(f"Error occurred: {e}")
             return "An error occurred while processing your request."
     
-    @fnc_ctx.ai_callable()
-    async def send_via_gmail(message: str, email_address: str) -> str:
-        """
-        Called when the user asks to send an email. Sends an email using the analyzed message content provided by the voice AI.
+    # @fnc_ctx.ai_callable()
+    # async def send_via_gmail(message: str, email_address: str) -> str:
+    #     """
+    #     Called when the user asks to send an email. Sends an email using the analyzed message content provided by the voice AI.
         
-        :param message: The analyzed message content.
-        :param email_address: The recipient's email address.
-        :return: A confirmation message indicating the email status.
-        """
-        try:
-            subject = "No Subject"
+    #     :param message: The analyzed message content.
+    #     :param email_address: The recipient's email address.
+    #     :return: A confirmation message indicating the email status.
+    #     """
+    #     try:
+    #         subject = "No Subject"
 
-            send_result = await send_email(email_address, subject, message)
+    #         send_result = await send_email(email_address, subject, message)
             
-            return f"Email sent to {email_address}. {send_result}"
-        except Exception as e:
-            logger.error(f"Error occurred: {e}")
-            return "An error occurred while processing your request."
+    #         return f"Email sent to {email_address}. {send_result}"
+    #     except Exception as e:
+    #         logger.error(f"Error occurred: {e}")
+    #         return "An error occurred while processing your request."
         
     @fnc_ctx.ai_callable()
     async def record_time_function(
@@ -296,12 +315,12 @@ async def entrypoint(ctx: JobContext):
     )
     async def create_realtime_model():
         return openai.realtime.RealtimeModel(
-            model="gpt-4o-mini-realtime-preview",
+            model="gpt-4.1-mini-2025-04-14",
             voice="shimmer",
             temperature=0.6,
             instructions=(instruction_prompt),
             turn_detection=openai.realtime.ServerVadOptions(
-                threshold=0.6, prefix_padding_ms=300, silence_duration_ms=600
+                threshold=0.6, prefix_padding_ms=300, silence_duration_ms=800
             )
         )
 
