@@ -79,7 +79,7 @@ docker rm awm-agent
 docker exec -it awm-agent /bin/bash
 ```
 
-### Running
+### When deploying
 - docker compose down && docker compose build --no-cache && docker compose up -d
 
 ### Environment Variables

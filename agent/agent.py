@@ -12,7 +12,7 @@ import asyncio
 import time
 import json
 import importlib
-from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
+from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type, before_sleep_log
 official_openai = importlib.import_module("openai")
 
 
@@ -99,6 +99,9 @@ async def entrypoint(ctx: JobContext):
             logger.info("Successfully reconnected to OpenAI")
         except Exception as e:
             logger.error(f"Failed to reconnect to OpenAI: {e}")
+            # Retry reconnection after a delay
+            await asyncio.sleep(5)
+            asyncio.create_task(reconnect_agent())
 
     stt_instance = STT(model="nova-3")
     tasks = []  # To keep track of running tasks
@@ -290,9 +293,10 @@ async def entrypoint(ctx: JobContext):
 
     # Initialize the OpenAI realtime model with retry logic
     @retry(
-        stop=stop_after_attempt(3),
-        wait=wait_exponential(multiplier=1, min=4, max=10),
-        retry=retry_if_exception_type(Exception)
+        stop=stop_after_attempt(5),  # Increased from 3 to 5 attempts
+        wait=wait_exponential(multiplier=1, min=4, max=30),  # Increased max wait time
+        retry=retry_if_exception_type(Exception),
+        before_sleep=before_sleep_log(logger, logging.INFO)
     )
     async def create_realtime_model():
         return openai.realtime.RealtimeModel(
@@ -321,7 +325,12 @@ async def entrypoint(ctx: JobContext):
     @agent.on("error")
     def handle_agent_error(error: Exception):
         logger.error(f"Agent error occurred: {error}")
-        if "OpenAI S2S connection closed unexpectedly" in str(error):
+        error_str = str(error)
+        if any(msg in error_str for msg in [
+            "OpenAI S2S connection closed unexpectedly",
+            "response_cancel_not_active",
+            "invalid_request_error"
+        ]):
             logger.info("Attempting to reconnect to OpenAI...")
             asyncio.create_task(reconnect_agent())
 

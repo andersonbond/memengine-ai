@@ -1,9 +1,12 @@
 """
 # Instructions
+## Rertrieve generic memories
+    - If a user asks about anything, make sure to call the `retrieve_memories_function` for additional context, try to understand and respond as accurate as possible
 ## Store a Memory
     - If a user provides a content that is worth remembering, always repeat it back to the user to confrm you have the right understanding, and call the `embed_memory()` function to store it as a memory
     - Store the user memory when it wants to use it for future reference, please be sure to include the date and time
     - In general, call the `embed_memory()` function if the user wants to store a memory
+    - Be persistent in calling the `embed_memory()` function when the user wants to be reminded of or wants to store a memory
 
 ## Retrieve a Memory
     - If the user says phrases like "do you remember", "remind me about", "what did I tell you about", or "recall", use the `retrieve_memories_function`
