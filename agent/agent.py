@@ -307,7 +307,7 @@ async def entrypoint(ctx: JobContext):
     )
     async def create_realtime_model():
         return openai.realtime.RealtimeModel(
-            model="gpt-4.1-mini-2025-04-14",
+            model="gpt-4o-realtime-preview",
             voice="shimmer",
             temperature=0.6,
             instructions=(instruction_prompt),
