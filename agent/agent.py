@@ -85,14 +85,20 @@ async def entrypoint(ctx: JobContext):
     
     # Add connection error handling
     @ctx.room.on("connection_state_changed")
-    async def handle_connection_state(state):
+    def handle_connection_state(state):
         logger.info(f"Connection state changed to: {state}")
         if state == "disconnected":
             logger.info("Attempting to reconnect...")
-            try:
-                await ctx.room.reconnect()
-            except Exception as e:
-                logger.error(f"Reconnection failed: {e}")
+            asyncio.create_task(reconnect_agent())
+
+    async def reconnect_agent():
+        try:
+            logger.info("Reconnecting agent...")
+            new_model = await create_realtime_model()
+            agent.model = new_model
+            logger.info("Successfully reconnected to OpenAI")
+        except Exception as e:
+            logger.error(f"Failed to reconnect to OpenAI: {e}")
 
     stt_instance = STT(model="nova-3")
     tasks = []  # To keep track of running tasks
@@ -335,15 +341,6 @@ async def entrypoint(ctx: JobContext):
         if "OpenAI S2S connection closed unexpectedly" in str(error):
             logger.info("Attempting to reconnect to OpenAI...")
             asyncio.create_task(reconnect_agent())
-
-    async def reconnect_agent():
-        try:
-            logger.info("Reconnecting agent...")
-            new_model = await create_realtime_model()
-            agent.model = new_model
-            logger.info("Successfully reconnected to OpenAI")
-        except Exception as e:
-            logger.error(f"Failed to reconnect to OpenAI: {e}")
 
     @agent.on("agent_speech_committed")
     def _on_agent_speech_created(msg: llm.ChatMessage):
