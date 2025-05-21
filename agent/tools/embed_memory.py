@@ -150,8 +150,65 @@ async def embed_and_store(
     
     return result
 
-if __name__ == "__main__":
-    # Example usage
-    example_content = "This is an example memory that will be embedded and stored."
-    result = asyncio.run(embed_and_store(content=example_content, user="test_user"))
-    print(f"Operation result: {result}")
+async def retrieve_memories(query: str) -> Dict[str, Any]:
+    """
+    Retrieve relevant memories using semantic search.
+
+    Args:
+        query (str): The search query to find relevant memories
+
+    Returns:
+        Dict[str, Any]: A dictionary containing:
+            - success (bool): Whether the operation was successful
+            - memories (List[Dict]): List of retrieved memories with their metadata
+            - error (Optional[str]): Error message if any
+    """
+    result = {
+        "success": False,
+        "memories": [],
+        "error": None
+    }
+
+    try:
+        # Generate embedding for the query
+        embeddings = OpenAIEmbeddings(openai_api_key=OPENAI_API_KEY)
+        query_vector = await asyncio.to_thread(embeddings.embed_query, query)
+        
+        # Perform semantic search in the 'memories' table using hybrid_search
+        response = supabase.rpc(
+            "hybrid_search",
+            {
+                "query_text": query,
+                "query_embedding": query_vector,
+                "match_count": 10,
+                "semantic_weight": 0.7,  # Weight for semantic search
+                "full_text_weight": 0.3,  # Weight for text search
+                "rrf_k": 60  # Reciprocal Rank Fusion parameter
+            }
+        ).execute()
+
+        if response.data:
+            # Process and format the retrieved memories
+            memories = []
+            for item in response.data:
+                memory = {
+                    "content": item["content"],
+                    "source_file": item["source_file"],
+                    "user": item["user"],
+                    "similarity_score": item.get("similarity", 0),
+                    "created_at": item.get("created_at")
+                }
+                memories.append(memory)
+            
+            result["memories"] = memories
+            result["success"] = True
+            logger.info(f"Successfully retrieved {len(memories)} memories")
+        else:
+            logger.info("No relevant memories found")
+            result["success"] = True  # Still successful, just no results
+
+    except Exception as e:
+        logger.error(f"Error retrieving memories: {e}")
+        result["error"] = str(e)
+
+    return result

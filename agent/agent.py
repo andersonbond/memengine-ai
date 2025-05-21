@@ -38,7 +38,7 @@ from livekit.plugins import openai, deepgram, silero
 from langchain_openai.embeddings import OpenAIEmbeddings
 from supabase import create_client, Client
 
-from tools.embed_memory import embed_and_store
+from tools.embed_memory import embed_and_store, retrieve_memories
 from tools.log_user_data import log_user_data as handle_log_user_data
 from tools.retrieve_policies import retrieve_policies as handle_retrieve_policies
 from tools.outbound_call import outbound_call as handle_outbound_call
@@ -113,6 +113,7 @@ async def entrypoint(ctx: JobContext):
     ) -> str:
         """Called when the user asks to store a memory when it wants to use it for future reference, or share personal schedule availibility."""
         try:
+            logger.info(f"Storing memory for user {user}: {memory}")
             # Get the current date and time
             current_datetime = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
             logger.info(f"Current date and time: {current_datetime}")
@@ -120,7 +121,8 @@ async def entrypoint(ctx: JobContext):
             memory_content = f"User: {user}\nDate: {current_datetime}\nMemory: {memory}"
             
             # Use the embed_and_store function with the new implementation
-            await embed_and_store(content=memory_content, user=user)
+            result = await embed_and_store(content=memory_content, user=user)
+            logger.info(f"Memory storage result: {result}")
             
             return f"Memory has been stored for {user}: {memory}"
         except Exception as e:
@@ -150,37 +152,29 @@ async def entrypoint(ctx: JobContext):
 
     @fnc_ctx.ai_callable()
     async def retrieve_policies_function(query: str) -> str:
-        """Called when the user explains the incident or asks about insurance and data governance policies. Policy-related and data governance from Anderson Bank and Insurance database."""
+        """Called when the user explains the incident or asks about insurance policies. Policy-related from Anderson Bank and Insurance database."""
         try:
-            return await handle_retrieve_policies(query)
+            logger.info(f"Retrieving policies with query: {query}")
+            result = await handle_retrieve_policies(query)
+            logger.info(f"Policy retrieval result: {result}")
+            return result
         except Exception as e:
-            logger.error(f"Error occurred: {e}")
-            return "An error occurred while processing your request."
-
-    @fnc_ctx.ai_callable()
-    async def outbound_call_function(
-        phone_number: Annotated[
-            str, llm.TypeInfo(description="Phone number to call: +639477886466")
-        ]
-    ) -> str:
-        """Called when the customer would like to be transferred to a real human agent. This function will add another participant to the call."""
-        try:
-            call_sid = await handle_outbound_call("09477886466")
-            return f"Outbound call initiated with SID: {call_sid}"
-        except Exception as e:
-            logger.error(f"Error occurred: {e}")
+            logger.error(f"Error occurred in retrieve_policies_function: {e}")
             return "An error occurred while processing your request."
     
-    # @fnc_ctx.ai_callable()
-    # async def weather_check(location: Annotated[
-    #         str, llm.TypeInfo(description="The location to get the weather for")
-    #     ],) -> str:
-    #     """Called when the user asks about the weather. This function will return the weather for the given location."""
-    #     try:
-    #         return await get_weather(location)
-    #     except Exception as e:
-    #         logger.error(f"Error occurred: {e}")
-    #         return "An error occurred while processing your request."
+    @fnc_ctx.ai_callable()
+    async def weather_check(location: Annotated[
+            str, llm.TypeInfo(description="The location to get the weather for")
+        ],) -> str:
+        """Called when the user asks about the weather. This function will return the weather for the given location."""
+        try:
+            logger.info(f"Checking weather for location: {location}")
+            result = await get_weather(location)
+            logger.info(f"Weather check result: {result}")
+            return result
+        except Exception as e:
+            logger.error(f"Error occurred in weather_check: {e}")
+            return "An error occurred while processing your request."
 
     @fnc_ctx.ai_callable()
     async def time_check(timezone: str = "Asia/Manila") -> str:
@@ -189,56 +183,13 @@ async def entrypoint(ctx: JobContext):
         Defaults to Philippines time (Asia/Manila) if no timezone is provided.
         """
         try:
-            return await get_current_time(timezone)
+            logger.info(f"Checking time for timezone: {timezone}")
+            result = await get_current_time(timezone)
+            logger.info(f"Time check result: {result}")
+            return result
         except Exception as e:
-            logger.error(f"Error occurred: {e}")
+            logger.error(f"Error occurred in time_check: {e}")
             return "An error occurred while processing your request."
-    
-    # @fnc_ctx.ai_callable()
-    # async def send_via_gmail(message: str, email_address: str) -> str:
-    #     """
-    #     Called when the user asks to send an email. Sends an email using the analyzed message content provided by the voice AI.
-        
-    #     :param message: The analyzed message content.
-    #     :param email_address: The recipient's email address.
-    #     :return: A confirmation message indicating the email status.
-    #     """
-    #     try:
-    #         subject = "No Subject"
-
-    #         send_result = await send_email(email_address, subject, message)
-            
-    #         return f"Email sent to {email_address}. {send_result}"
-    #     except Exception as e:
-    #         logger.error(f"Error occurred: {e}")
-    #         return "An error occurred while processing your request."
-        
-    @fnc_ctx.ai_callable()
-    async def record_time_function(
-        username: str,
-        category: str,
-        remarks: Optional[str] = None
-    ) -> str:
-        """
-        Records time in/out for a user in the timesheet table.
-        
-        Args:
-            username (str): The username of the person recording time
-            category (str): Either 'time_in' or 'time_out'
-            remarks (Optional[str]): Additional remarks about the time record
-            
-        Returns:
-            str: A message indicating the success or failure of the operation
-        """
-        try:
-            result = await record_time(username, category, remarks)
-            if result["success"]:
-                return result["message"]
-            else:
-                return f"Failed to record time: {result.get('error', 'Unknown error')}"
-        except Exception as e:
-            logger.error(f"Error in record_time_function: {e}")
-            return "An error occurred while recording time."
 
     @fnc_ctx.ai_callable()
     async def get_time_records_function(
@@ -279,6 +230,38 @@ async def entrypoint(ctx: JobContext):
             logger.error(f"Error in get_time_records_function: {e}")
             return "An error occurred while retrieving time records."
 
+    @fnc_ctx.ai_callable()
+    async def retrieve_memories_function(query: str) -> str:
+        """Called when the use wants to remember something. Retrieve relevant memories using semantic search."""
+        try:
+            logger.info(f"Retrieving memories query: {query}")
+            result = await retrieve_memories(query=query)
+            logger.info(f"Memory retrieval result: {result}")
+            
+            if result["success"]:
+                if not result["memories"]:
+                    logger.info("No relevant memories found")
+                    return "No relevant memories found."
+                
+                # Format the memories
+                memories_text = []
+                for memory in result["memories"]:
+                    memory_text = f"Memory: {memory['content']}"
+                    if memory.get('created_at'):
+                        memory_text += f"\nCreated: {memory['created_at']}"
+                    memories_text.append(memory_text)
+                
+                formatted_result = "\n\n".join(memories_text)
+                logger.info(f"Formatted memories: {formatted_result}")
+                return formatted_result
+            else:
+                error_msg = f"Failed to retrieve memories: {result.get('error', 'Unknown error')}"
+                logger.error(error_msg)
+                return error_msg
+        except Exception as e:
+            logger.error(f"Error in retrieve_memories_function: {e}")
+            return "An error occurred while retrieving memories."
+
     await ctx.connect(auto_subscribe=AutoSubscribe.AUDIO_ONLY)
     participant = await ctx.wait_for_participant()
 
@@ -313,7 +296,7 @@ async def entrypoint(ctx: JobContext):
     )
     async def create_realtime_model():
         return openai.realtime.RealtimeModel(
-            model="gpt-4o-realtime-preview",
+            model="gpt-4o-mini-realtime-preview",
             voice="shimmer",
             temperature=0.6,
             instructions=(instruction_prompt),
