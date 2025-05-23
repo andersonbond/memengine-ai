@@ -96,6 +96,7 @@ function ControlBar(props: {
   const krisp = useKrispNoiseFilter();
   useEffect(() => {
     krisp.setNoiseFilterEnabled(true);
+    console.log('Initial noise filter state:', krisp.isNoiseFilterEnabled);
   }, []);
 
   return (
@@ -125,8 +126,22 @@ function ControlBar(props: {
               animate={{ opacity: 1, top: 0 }}
               exit={{ opacity: 0, top: "-10px" }}
               transition={{ duration: 0.4, ease: [0.09, 1.04, 0.245, 1.055] }}
-              className="flex h-8 absolute left-1/2 -translate-x-1/2  justify-center"
+              className="flex h-8 absolute left-1/2 -translate-x-1/2  justify-center items-center gap-4"
             >
+              <div className="flex items-center gap-2 text-sm">
+                <input
+                  type="checkbox"
+                  id="noise-filter"
+                  onChange={(ev) => {
+                    console.log('Noise filter toggled:', ev.target.checked);
+                    krisp.setNoiseFilterEnabled(ev.target.checked);
+                  }}
+                  checked={krisp.isNoiseFilterEnabled}
+                  disabled={krisp.isNoiseFilterPending}
+                  className="w-4 h-4"
+                />
+                <label htmlFor="noise-filter">Noise Filter</label>
+              </div>
               <VoiceAssistantControlBar controls={{ leave: false }} />
               <DisconnectButton>
                 <CloseIcon />
