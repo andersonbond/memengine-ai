@@ -1,8 +1,10 @@
-livekit-agents>=1.0.23
-livekit-plugins-openai>=1.0.23
-livekit-plugins-deepgram>=1.0.23
-livekit-plugins-silero>=1.0.23
-livekit-protocol~=1.0.3
+livekit==1.0.8
+livekit-agents==1.0.23
+livekit-api==1.0.2
+livekit-plugins-openai==1.0.23
+livekit-plugins-deepgram==1.0.23
+livekit-plugins-silero==1.0.23
+livekit-protocol==1.0.3
 python-dotenv~=1.0
 tiktoken~=0.8.0
 langchain~=0.3.7
@@ -16,3 +18,4 @@ twilio~=9.4.5
 aiosmtplib~=4.0.0
 aiofiles~=24.1.0
 tenacity~=9.0.0
+pytz

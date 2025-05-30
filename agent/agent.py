@@ -1,16 +1,11 @@
 import sys
+from datetime import datetime
 print("Using Python executable:", sys.executable)
+print("Running agent.py version:", datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
 import os
 import logging
 from typing import List, Annotated, Optional
-from datetime import datetime
-import random
-import re
-import urllib
-import aiohttp
 import asyncio
-import time
-import json
 import importlib
 from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type, before_sleep_log
 official_openai = importlib.import_module("openai")
@@ -255,16 +250,28 @@ async def entrypoint(ctx: JobContext):
             asyncio.create_task(reconnect_agent())
 
     # Initialize the session with all components
-    session = AgentSession(
-        vad=ctx.proc.userdata["vad"],
-        llm=openai.LLM(
-            model="gpt-4o-mini-realtime-preview",
-            temperature=0.6
-        ),
-        stt=deepgram.STT(model="nova-3", language="multi"),
-        tts=openai.TTS(voice="shimmer"),
-        turn_detection=silero.VAD.load(),
-    )
+    llm_model = "gpt-4o-mini-realtime-preview"
+    logger.info(f"Initializing session with LLM model: {llm_model}")
+    
+    try:
+        # Initialize VAD with more stable configuration
+        vad_model = silero.VAD.load()
+        logger.info("Successfully loaded VAD model")
+        
+        session = AgentSession(
+            vad=vad_model,
+            llm=openai.LLM(
+                model=llm_model,
+                temperature=0.6
+            ),
+            stt=deepgram.STT(model="nova-3", language="multi"),
+            tts=openai.TTS(voice="coral"),
+            turn_detection=vad_model,  # Use the same VAD instance for turn detection
+        )
+        logger.info("Successfully initialized AgentSession")
+    except Exception as e:
+        logger.error(f"Error initializing session components: {str(e)}")
+        raise
 
     # Set up metrics collection
     usage_collector = metrics.UsageCollector()
