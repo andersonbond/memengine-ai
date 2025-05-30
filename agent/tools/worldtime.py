@@ -1,22 +1,27 @@
-import aiohttp
+import datetime
+import pytz
+from typing import Optional
 
-async def get_current_time(user_timezone: str = "Asia/Manila") -> str:
+async def get_current_time(timezone: str = "Asia/Manila") -> str:
     """
-    Returns the current time from worldtimeapi.org for the specified timezone.
-    Defaults to Asia/Manila (Philippines) if no timezone is provided.
+    Get the current time for a given timezone.
     
-    :param user_timezone: A timezone string (e.g. "America/New_York").
-    :return: The current datetime as a string or an error message.
+    Args:
+        timezone (str): The timezone to get the time for (default: Asia/Manila)
+        
+    Returns:
+        str: Formatted string with current date and time
     """
-    url = f"http://worldtimeapi.org/api/timezone/{user_timezone}"
     try:
-        async with aiohttp.ClientSession() as session:
-            async with session.get(url) as response:
-                if response.status == 200:
-                    data = await response.json()
-                    # Extract the "datetime" field from the JSON response.
-                    return data.get("datetime", "Time data not available.")
-                else:
-                    return f"Error: Unable to fetch time data for timezone '{user_timezone}'. HTTP status: {response.status}"
+        # Get the timezone
+        tz = pytz.timezone(timezone)
+        
+        # Get current time in the specified timezone
+        current_time = datetime.datetime.now(tz)
+        
+        # Format the time string
+        time_str = current_time.strftime("%B %d, %Y %I:%M %p")
+        
+        return f"The current time in {timezone} is {time_str}"
     except Exception as e:
-        return f"Error: {e}"
+        return f"Error getting time: {str(e)}"

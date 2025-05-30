@@ -15,28 +15,26 @@ import importlib
 from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type, before_sleep_log
 official_openai = importlib.import_module("openai")
 
-
 from dotenv import load_dotenv
+from supabase import create_client, Client
+from langchain_openai.embeddings import OpenAIEmbeddings
 
 from livekit.agents import (
-    AutoSubscribe,
+    Agent,
+    AgentSession,
     JobContext,
     JobProcess,
+    RoomInputOptions,
+    RoomOutputOptions,
+    RunContext,
     WorkerOptions,
     cli,
-    llm,
-    multimodal,
-    stt,
-    transcription
+    metrics,
 )
-from livekit.plugins.deepgram import STT
-from livekit.agents.pipeline import AgentCallContext, VoicePipelineAgent
-from livekit.agents.multimodal import MultimodalAgent
+from livekit.agents.llm import function_tool
+from livekit.agents.voice import MetricsCollectedEvent
+from livekit.plugins import deepgram, openai, silero
 from livekit.rtc import RemoteParticipant, Track, TrackKind, AudioStream
-
-from livekit.plugins import openai, deepgram, silero
-from langchain_openai.embeddings import OpenAIEmbeddings
-from supabase import create_client, Client
 
 from tools.embed_memory import embed_and_store, retrieve_memories
 from tools.log_user_data import log_user_data as handle_log_user_data
@@ -63,22 +61,176 @@ supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 # Initialize OpenAI embeddings
 embeddings = OpenAIEmbeddings(api_key=OPENAI_API_KEY)
 
+class MyAgent(Agent):
+    def __init__(self) -> None:
+        # Load the instruction prompt
+        instruction_prompt_file_path = os.path.join(
+            os.path.dirname(__file__), "prompt", "instructions.txt"
+        )
+        with open(instruction_prompt_file_path, "r") as instruction_prompt_file:
+            instruction_prompt = instruction_prompt_file.read()
+
+        # Load the system prompt
+        prompt_file_path = os.path.join(
+            os.path.dirname(__file__), "prompt", "system_prompt.txt"
+        )
+        with open(prompt_file_path, "r") as prompt_file:
+            system_prompt = prompt_file.read()
+
+        # Add current date and time to the system prompt for context
+        current_datetime = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        username = "Anderson"
+        system_prompt += f"\n\nUsername: {username}\n\nCurrent Date and Time: {current_datetime}"
+
+        # Combine prompts
+        full_instructions = f"{system_prompt}\n\n{instruction_prompt}"
+
+        super().__init__(
+            instructions=full_instructions
+        )
+
+    async def on_enter(self):
+        self.session.generate_reply()
+
+    @function_tool
+    async def embed_memory(
+        self,
+        context: RunContext,
+        user: str,
+        memory: str
+    ) -> str:
+        """Called when the user asks to store a memory when it wants to use it for future reference, or share personal schedule availibility."""
+        try:
+            logger.info(f"Storing memory for user {user}: {memory}")
+            current_datetime = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+            logger.info(f"Current date and time: {current_datetime}")
+            memory_content = f"User: {user}\nDate: {current_datetime}\nMemory: {memory}"
+            
+            result = await embed_and_store(content=memory_content, user=user)
+            logger.info(f"Memory storage result: {result}")
+            
+            return f"Memory has been stored for {user}: {memory}"
+        except Exception as e:
+            logger.error(f"Error adding memory: {e}")
+            return "An error occurred while adding memory."
+
+    @function_tool
+    async def retrieve_policies(
+        self,
+        context: RunContext,
+        query: str
+    ) -> str:
+        """Called when the user explains the incident or asks about insurance policies. Policy-related from Anderson Bank and Insurance database."""
+        try:
+            logger.info(f"Retrieving policies with query: {query}")
+            result = await handle_retrieve_policies(query)
+            logger.info(f"Policy retrieval result: {result}")
+            return result
+        except Exception as e:
+            logger.error(f"Error occurred in retrieve_policies_function: {e}")
+            return "An error occurred while processing your request."
+
+    @function_tool
+    async def weather_check(
+        self,
+        context: RunContext,
+        location: str
+    ) -> str:
+        """Called when the user asks about the weather. This function will return the weather for the given location."""
+        try:
+            logger.info(f"Checking weather for location: {location}")
+            result = await get_weather(location)
+            logger.info(f"Weather check result: {result}")
+            return result
+        except Exception as e:
+            logger.error(f"Error occurred in weather_check: {e}")
+            return "An error occurred while processing your request."
+
+    @function_tool
+    async def time_check(
+        self,
+        context: RunContext,
+        timezone: str = "Asia/Manila"
+    ) -> str:
+        """Called when the user asks for the current date and time. Returns the current date and time for the given timezone."""
+        try:
+            logger.info(f"Checking time for timezone: {timezone}")
+            result = await get_current_time(timezone)
+            logger.info(f"Time check result: {result}")
+            return result
+        except Exception as e:
+            logger.error(f"Error occurred in time_check: {e}")
+            return "An error occurred while processing your request."
+
+    @function_tool
+    async def get_time_records(
+        self,
+        context: RunContext,
+        username: str,
+        date: Optional[str] = None
+    ) -> str:
+        """Retrieves time records for a user from the timesheet table."""
+        try:
+            result = await get_time_records(username, date)
+            if result["success"]:
+                if not result["records"]:
+                    return f"No time records found for {username}"
+                
+                records_text = []
+                for record in result["records"]:
+                    record_text = (
+                        f"Date: {record['date']}, Time: {record['time']}, "
+                        f"Type: {record['category']}"
+                    )
+                    if record['remarks']:
+                        record_text += f", Remarks: {record['remarks']}"
+                    records_text.append(record_text)
+                
+                return "\n".join(records_text)
+            else:
+                return f"Failed to retrieve time records: {result.get('error', 'Unknown error')}"
+        except Exception as e:
+            logger.error(f"Error in get_time_records_function: {e}")
+            return "An error occurred while retrieving time records."
+
+    @function_tool
+    async def retrieve_memories(
+        self,
+        context: RunContext,
+        query: str
+    ) -> str:
+        """Called when the use wants to remember something. Retrieve relevant memories using semantic search."""
+        try:
+            logger.info(f"Retrieving memories query: {query}")
+            result = await retrieve_memories(query=query)
+            logger.info(f"Memory retrieval result: {result}")
+            
+            if result["success"]:
+                if not result["memories"]:
+                    logger.info("No relevant memories found")
+                    return "No relevant memories found."
+                
+                memories_text = []
+                for memory in result["memories"]:
+                    memory_text = f"Memory: {memory['content']}"
+                    if memory.get('created_at'):
+                        memory_text += f"\nCreated: {memory['created_at']}"
+                    memories_text.append(memory_text)
+                
+                formatted_result = "\n\n".join(memories_text)
+                logger.info(f"Formatted memories: {formatted_result}")
+                return formatted_result
+            else:
+                error_msg = f"Failed to retrieve memories: {result.get('error', 'Unknown error')}"
+                logger.error(error_msg)
+                return error_msg
+        except Exception as e:
+            logger.error(f"Error in retrieve_memories_function: {e}")
+            return "An error occurred while retrieving memories."
+
 def prewarm(proc: JobProcess):
     """Pre-warm resources like VAD for faster startup."""
     proc.userdata["vad"] = silero.VAD.load()
-
-async def _forward_transcription(
-    stt_stream: stt.SpeechStream,
-    stt_forwarder: transcription.STTSegmentsForwarder,
-):
-    """Forward the transcription and log the transcript in the console."""
-    async for ev in stt_stream:
-        stt_forwarder.update(ev)
-        if ev.type == stt.SpeechEventType.INTERIM_TRANSCRIPT:
-            print(ev.alternatives[0].text, end="")
-        elif ev.type == stt.SpeechEventType.FINAL_TRANSCRIPT:
-            print("\n")
-            print(" -> ", ev.alternatives[0].text)
 
 async def entrypoint(ctx: JobContext):
     logger.info("Starting entrypoint")
@@ -99,286 +251,45 @@ async def entrypoint(ctx: JobContext):
             logger.info("Successfully reconnected to OpenAI")
         except Exception as e:
             logger.error(f"Failed to reconnect to OpenAI: {e}")
-            # Retry reconnection after a delay
-            await asyncio.sleep(5)
+            await asyncio.sleep(3)
             asyncio.create_task(reconnect_agent())
 
-    stt_instance = STT(model="nova-3")
-    tasks = []  # To keep track of running tasks
-
-    # FUNCTION CALLING: Register AI callable functions.
-    fnc_ctx = llm.FunctionContext()
-
-    @fnc_ctx.ai_callable()
-    async def embed_memory(
-        user: str,
-        memory: str
-    ) -> str:
-        """Called when the user asks to store a memory when it wants to use it for future reference, or share personal schedule availibility."""
-        try:
-            logger.info(f"Storing memory for user {user}: {memory}")
-            # Get the current date and time
-            current_datetime = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-            logger.info(f"Current date and time: {current_datetime}")
-            # Create a memory string in a structured format
-            memory_content = f"User: {user}\nDate: {current_datetime}\nMemory: {memory}"
-            
-            # Use the embed_and_store function with the new implementation
-            result = await embed_and_store(content=memory_content, user=user)
-            logger.info(f"Memory storage result: {result}")
-            
-            return f"Memory has been stored for {user}: {memory}"
-        except Exception as e:
-            logger.error(f"Error adding memory: {e}")
-            return "An error occurred while adding memory."
-
-    @fnc_ctx.ai_callable()
-    async def log_user_data_function(
-        user_firstname: str,
-        user_contact: str,
-        user_plate_number: str,
-        incident: str,
-        evaluation: str
-    ) -> str:
-        """Logs customer data into the database."""
-        try:
-            return await handle_log_user_data(
-                user_firstname,
-                user_contact,
-                user_plate_number,
-                incident,
-                evaluation
-            )
-        except Exception as e:
-            logger.error(f"Error occurred: {e}")
-            return "An error occurred while processing your request."
-
-    @fnc_ctx.ai_callable()
-    async def retrieve_policies_function(query: str) -> str:
-        """Called when the user explains the incident or asks about insurance policies. Policy-related from Anderson Bank and Insurance database."""
-        try:
-            logger.info(f"Retrieving policies with query: {query}")
-            result = await handle_retrieve_policies(query)
-            logger.info(f"Policy retrieval result: {result}")
-            return result
-        except Exception as e:
-            logger.error(f"Error occurred in retrieve_policies_function: {e}")
-            return "An error occurred while processing your request."
-    
-    @fnc_ctx.ai_callable()
-    async def weather_check(location: Annotated[
-            str, llm.TypeInfo(description="The location to get the weather for")
-        ],) -> str:
-        """Called when the user asks about the weather. This function will return the weather for the given location."""
-        try:
-            logger.info(f"Checking weather for location: {location}")
-            result = await get_weather(location)
-            logger.info(f"Weather check result: {result}")
-            return result
-        except Exception as e:
-            logger.error(f"Error occurred in weather_check: {e}")
-            return "An error occurred while processing your request."
-
-    @fnc_ctx.ai_callable()
-    async def time_check(timezone: str = "Asia/Manila") -> str:
-        """
-        Called when the user asks for the current date and time. Returns the current date and time for the given timezone.
-        Defaults to Philippines time (Asia/Manila) if no timezone is provided.
-        """
-        try:
-            logger.info(f"Checking time for timezone: {timezone}")
-            result = await get_current_time(timezone)
-            logger.info(f"Time check result: {result}")
-            return result
-        except Exception as e:
-            logger.error(f"Error occurred in time_check: {e}")
-            return "An error occurred while processing your request."
-
-    @fnc_ctx.ai_callable()
-    async def get_time_records_function(
-        username: str,
-        date: Optional[str] = None
-    ) -> str:
-        """
-        Retrieves time records for a user from the timesheet table.
-        
-        Args:
-            username (str): The username to get records for
-            date (Optional[str]): Specific date to filter records (YYYY-MM-DD format)
-            
-        Returns:
-            str: A formatted message containing the time records or an error message
-        """
-        try:
-            result = await get_time_records(username, date)
-            if result["success"]:
-                if not result["records"]:
-                    return f"No time records found for {username}"
-                
-                # Format the records
-                records_text = []
-                for record in result["records"]:
-                    record_text = (
-                        f"Date: {record['date']}, Time: {record['time']}, "
-                        f"Type: {record['category']}"
-                    )
-                    if record['remarks']:
-                        record_text += f", Remarks: {record['remarks']}"
-                    records_text.append(record_text)
-                
-                return "\n".join(records_text)
-            else:
-                return f"Failed to retrieve time records: {result.get('error', 'Unknown error')}"
-        except Exception as e:
-            logger.error(f"Error in get_time_records_function: {e}")
-            return "An error occurred while retrieving time records."
-
-    @fnc_ctx.ai_callable()
-    async def retrieve_memories_function(query: str) -> str:
-        """Called when the use wants to remember something. Retrieve relevant memories using semantic search."""
-        try:
-            logger.info(f"Retrieving memories query: {query}")
-            result = await retrieve_memories(query=query)
-            logger.info(f"Memory retrieval result: {result}")
-            
-            if result["success"]:
-                if not result["memories"]:
-                    logger.info("No relevant memories found")
-                    return "No relevant memories found."
-                
-                # Format the memories
-                memories_text = []
-                for memory in result["memories"]:
-                    memory_text = f"Memory: {memory['content']}"
-                    if memory.get('created_at'):
-                        memory_text += f"\nCreated: {memory['created_at']}"
-                    memories_text.append(memory_text)
-                
-                formatted_result = "\n\n".join(memories_text)
-                logger.info(f"Formatted memories: {formatted_result}")
-                return formatted_result
-            else:
-                error_msg = f"Failed to retrieve memories: {result.get('error', 'Unknown error')}"
-                logger.error(error_msg)
-                return error_msg
-        except Exception as e:
-            logger.error(f"Error in retrieve_memories_function: {e}")
-            return "An error occurred while retrieving memories."
-
-    await ctx.connect(auto_subscribe=AutoSubscribe.AUDIO_ONLY)
-    participant = await ctx.wait_for_participant()
-
-    # Load the instruction prompt
-    instruction_prompt_file_path = os.path.join(
-        os.path.dirname(__file__), "prompt", "instructions.txt"
-    )
-   
-    with open(instruction_prompt_file_path, "r") as instruction_prompt_file:
-        instruction_prompt = instruction_prompt_file.read()
-        #print("Instruction: ", instruction_prompt)
-    # Load the system prompt
-    prompt_file_path = os.path.join(
-        os.path.dirname(__file__), "prompt", "system_prompt.txt"
-    )
-    with open(prompt_file_path, "r") as prompt_file:
-        system_prompt = prompt_file.read()
-
-     # Add current date and time to the system prompt for context.
-    current_datetime = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-    username = "Anderson"
-    system_prompt += f"\n\nUsername: {username}\n\nCurrent Date and Time: {current_datetime}"
-
-    chat_ctx = llm.ChatContext()
-    chat_ctx.append(role="system", text=system_prompt)
-
-    # Initialize the OpenAI realtime model with retry logic
-    @retry(
-        stop=stop_after_attempt(5),  # Increased from 3 to 5 attempts
-        wait=wait_exponential(multiplier=1, min=4, max=30),  # Increased max wait time
-        retry=retry_if_exception_type(Exception),
-        before_sleep=before_sleep_log(logger, logging.INFO)
-    )
-    async def create_realtime_model():
-        return openai.realtime.RealtimeModel(
+    # Initialize the session with all components
+    session = AgentSession(
+        vad=ctx.proc.userdata["vad"],
+        llm=openai.LLM(
             model="gpt-4o-mini-realtime-preview",
-            voice="shimmer",
-            temperature=0.6,
-            instructions=(instruction_prompt),
-            turn_detection=openai.realtime.ServerVadOptions(
-                threshold=0.6, prefix_padding_ms=300, silence_duration_ms=800
-            )
-        )
-
-    try:
-        realtime_model = await create_realtime_model()
-    except Exception as e:
-        logger.error(f"Failed to create OpenAI realtime model after retries: {e}")
-        raise
-
-    agent = multimodal.MultimodalAgent(
-        model=realtime_model,
-        fnc_ctx=fnc_ctx,
-        chat_ctx=chat_ctx,
+            temperature=0.6
+        ),
+        stt=deepgram.STT(model="nova-3", language="multi"),
+        tts=openai.TTS(voice="shimmer"),
+        turn_detection=silero.VAD.load(),
     )
 
-    # Add error handling for agent events
-    @agent.on("error")
-    def handle_agent_error(error: Exception):
-        logger.error(f"Agent error occurred: {error}")
-        error_str = str(error)
-        if any(msg in error_str for msg in [
-            "OpenAI S2S connection closed unexpectedly",
-            "response_cancel_not_active",
-            "invalid_request_error"
-        ]):
-            logger.info("Attempting to reconnect to OpenAI...")
-            asyncio.create_task(reconnect_agent())
+    # Set up metrics collection
+    usage_collector = metrics.UsageCollector()
 
-    @agent.on("agent_speech_committed")
-    def _on_agent_speech_created(msg: llm.ChatMessage):
-        max_ctx_len = 100
-        chat_context_copy = agent.chat_ctx_copy()
-        if len(chat_context_copy.messages) > max_ctx_len:
-            # Keep only the last max_ctx_len messages.
-            chat_context_copy.messages = chat_context_copy.messages[-max_ctx_len:]
-            # Create a task to update the agent's chat context and add it to our task list.
-            task = asyncio.create_task(agent.set_chat_ctx(chat_context_copy))
-            tasks.append(task)
+    @session.on("metrics_collected")
+    def _on_metrics_collected(ev: MetricsCollectedEvent):
+        metrics.log_metrics(ev.metrics)
+        usage_collector.collect(ev.metrics)
 
-    agent.start(ctx.room, participant)
+    async def log_usage():
+        summary = usage_collector.get_summary()
+        logger.info(f"Usage: {summary}")
 
-    async def transcribe_track(participant: RemoteParticipant, track: Track): 
-        """Handles audio track transcription."""
-        audio_stream = AudioStream(track, noise_suppression=True)
-        stt_forwarder = transcription.STTSegmentsForwarder(
-            room=ctx.room, participant=participant, track=track 
-        )
-        stt_stream = stt_instance.stream()
-        # Create a task for forwarding transcription.
-        stt_task = asyncio.create_task(_forward_transcription(stt_stream, stt_forwarder))
-        tasks.append(stt_task)
+    ctx.add_shutdown_callback(log_usage)
 
-        async for ev in audio_stream:
-            stt_stream.push_frame(ev.frame)
-    
-    @ctx.room.on("track_subscribed")
-    def on_track_subscribed(track: Track, publication, participant: RemoteParticipant):
-        """Triggers when a new audio track is subscribed."""
-        if track.kind == TrackKind.KIND_AUDIO:
-            task = asyncio.create_task(transcribe_track(participant, track))
-            tasks.append(task)
+    # Start the session with our custom agent
+    await session.start(
+        agent=MyAgent(),
+        room=ctx.room,
+        room_input_options=RoomInputOptions(),
+        room_output_options=RoomOutputOptions(transcription_enabled=True),
+    )
 
-    # Keep the entrypoint running indefinitely.
-    try:
-        await asyncio.Future()  # This future never completes, keeping the loop alive.
-    except asyncio.CancelledError:
-        logger.info("Entrypoint cancelled. Cleaning up tasks.")
-    finally:
-        # Cancel all pending tasks and wait for them to finish.
-        for t in tasks:
-            t.cancel()
-        await asyncio.gather(*tasks, return_exceptions=True)
-        logger.info("All tasks have been cleaned up.")
+    # Join the room when agent is ready
+    await ctx.connect()
 
 if __name__ == "__main__":
     cli.run_app(
