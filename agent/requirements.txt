@@ -19,4 +19,4 @@ twilio~=9.4.5
 aiosmtplib~=4.0.0
 aiofiles~=24.1.0
 tenacity~=9.0.0
-pytz
+pytz==2025.2
