@@ -19,6 +19,9 @@ COPY requirements.txt .
 # Install Python dependencies
 RUN pip install --no-cache-dir -r requirements.txt
 
+# Download the MultilingualModel for turn detection
+RUN python3 -c "from livekit.plugins.turn_detector.multilingual import MultilingualModel; MultilingualModel.download_model()"
+
 # Copy the rest of the application
 COPY . .
 
