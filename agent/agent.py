@@ -29,6 +29,7 @@ from livekit.agents import (
 from livekit.agents.llm import function_tool
 from livekit.agents.voice import MetricsCollectedEvent
 from livekit.plugins import deepgram, openai, silero
+from livekit.plugins.turn_detector.multilingual import MultilingualModel
 from livekit.rtc import RemoteParticipant, Track, TrackKind, AudioStream
 
 from tools.embed_memory import embed_and_store, retrieve_memories
@@ -255,18 +256,18 @@ async def entrypoint(ctx: JobContext):
     
     try:
         # Initialize VAD with more stable configuration
-        vad_model = silero.VAD.load()
-        logger.info("Successfully loaded VAD model")
-        
         session = AgentSession(
-            vad=vad_model,
-            llm=openai.LLM(
-                model=llm_model,
-                temperature=0.6
-            ),
-            stt=deepgram.STT(model="nova-3", language="multi"),
-            tts=openai.TTS(voice="coral"),
-            turn_detection=vad_model,  # Use the same VAD instance for turn detection
+            allow_interruptions=True,
+            turn_detection=MultilingualModel(),
+            vad=ctx.proc.userdata["vad"],
+            stt=deepgram.STT(),
+            llm=openai.realtime.RealtimeModel(
+                voice="alloy",
+                # it's necessary to turn off turn detection in the OpenAI Realtime API in order to use
+                # LiveKit's turn detection model
+                turn_detection=None,
+                input_audio_transcription=None,  # we use Deepgram STT instead
+            )
         )
         logger.info("Successfully initialized AgentSession")
     except Exception as e:
