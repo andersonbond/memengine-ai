@@ -58,6 +58,11 @@ embeddings = OpenAIEmbeddings(api_key=OPENAI_API_KEY)
 
 class MyAgent(Agent):
     def __init__(self) -> None:
+        
+        # Load the system prompt
+        prompt_file_path = os.path.join(
+            os.path.dirname(__file__), "prompt", "system_prompt.txt"
+        )
         # Load the instruction prompt
         instruction_prompt_file_path = os.path.join(
             os.path.dirname(__file__), "prompt", "instructions.txt"
@@ -65,10 +70,7 @@ class MyAgent(Agent):
         with open(instruction_prompt_file_path, "r") as instruction_prompt_file:
             instruction_prompt = instruction_prompt_file.read()
 
-        # Load the system prompt
-        prompt_file_path = os.path.join(
-            os.path.dirname(__file__), "prompt", "system_prompt.txt"
-        )
+        
         with open(prompt_file_path, "r") as prompt_file:
             system_prompt = prompt_file.read()
 
@@ -86,6 +88,28 @@ class MyAgent(Agent):
 
     async def on_enter(self):
         self.session.generate_reply()
+
+    @function_tool
+    async def log_user_data_function(
+        user_firstname: str,
+        user_contact: str,
+        user_plate_number: str,
+        incident: str,
+        evaluation: str
+    ) -> str:
+        """Logs customer data into the database."""
+        return await handle_log_user_data(
+            user_firstname,
+            user_contact,
+            user_plate_number,
+            incident,
+            evaluation
+        )
+    
+    @function_tool
+    async def retrieve_policies_function(query: str) -> str:
+        """Retrieve policy-related data from Anderson Bank and Insurance database."""
+        return await handle_retrieve_policies(query)
 
     @function_tool
     async def embed_memory(
@@ -115,7 +139,7 @@ class MyAgent(Agent):
         context: RunContext,
         query: str
     ) -> str:
-        """Called when the user explains the incident or asks about insurance policies. Policy-related from Anderson Bank and Insurance database."""
+        """Called when the user explains the incident or asks about insurance claim or insurance policy. Policy-related from Anderson Bank and Insurance database."""
         try:
             logger.info(f"Retrieving policies with query: {query}")
             result = await handle_retrieve_policies(query)
