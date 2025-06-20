@@ -265,16 +265,15 @@ async def entrypoint(ctx: JobContext):
     async def reconnect_agent():
         try:
             logger.info("Reconnecting agent...")
-            new_model = await create_realtime_model()
-            agent.model = new_model
-            logger.info("Successfully reconnected to OpenAI")
+            # Reconnect logic removed - the session will handle reconnection automatically
+            logger.info("Reconnection attempt completed")
         except Exception as e:
-            logger.error(f"Failed to reconnect to OpenAI: {e}")
+            logger.error(f"Failed to reconnect: {e}")
             await asyncio.sleep(3)
             asyncio.create_task(reconnect_agent())
 
     # Initialize the session with all components
-    llm_model = "gpt-4o-mini-realtime-preview"
+    llm_model = "gpt-4o-mini"
     logger.info(f"Initializing session with LLM model: {llm_model}")
     
     try:
