@@ -262,7 +262,7 @@ async def entrypoint(ctx: JobContext):
             vad=ctx.proc.userdata["vad"],
             stt=deepgram.STT(),
             llm=openai.realtime.RealtimeModel(
-                voice="alloy",
+                voice="shimmer",
                 # it's necessary to turn off turn detection in the OpenAI Realtime API in order to use
                 # LiveKit's turn detection model
                 turn_detection=None,
