@@ -1,16 +1,17 @@
-# docker-compose.yml
-version: '3.8'
-
 services:
   agent:
     build:
       context: ./agent
       dockerfile: Dockerfile
-    volumes:
-      - ./agent:/app
-      - ./agent/.env.local:/app/.env.local
+    env_file:
+      - ./agent/.env.local
     environment:
       - PYTHONUNBUFFERED=1
+    entrypoint: ["python", "agent.py"]
+    command: ["dev"]
+    # ← Add this block:
+    ports:
+      - "8080:8080"
     depends_on:
       - redis
     networks:
@@ -22,9 +23,10 @@ services:
       dockerfile: Dockerfile
     ports:
       - "3000:3000"
-    volumes:
-      - ./frontend:/app
-      - ./frontend/.env.local:/app/.env.local
+    env_file:
+      - ./frontend/.env.local
+      #- ./frontend:/app
+      #- ./frontend/.env.local:/app/.env.local
     environment:
       - NODE_ENV=production
     depends_on:

@@ -33,13 +33,13 @@ async def retrieve_policies(query: str) -> str:
         embeddings = OpenAIEmbeddings(openai_api_key=OPENAI_API_KEY)
         query_vector = embeddings.embed_query(query)
         
-        # Perform a similarity search in the 'memories' table
+        # Perform a similarity search in the 'policies' table
         response = supabase.rpc(
-            "hybrid_search",
+            "hybrid_search_policies",
             {
                 "query_text": query,
                 "query_embedding": query_vector,
-                "match_count": 7,
+                "match_count": 10,
             }
         ).execute()
         await asyncio.sleep(1)
